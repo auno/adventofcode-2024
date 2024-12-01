@@ -1,0 +1,16 @@
+# Linux/Unix
+*~
+.*.swp
+
+# Intellij
+.idea/
+*.iml
+*.iws
+
+/target
+**/*.rs.bk
+Cargo.lock
+
+/commit.sh
+/next.sh
+/input/

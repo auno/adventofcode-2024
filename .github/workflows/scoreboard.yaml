@@ -1,0 +1,29 @@
+name: Update Scoreboard
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+
+  generate-scoreboard:
+    name: Update Scoreboard
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Checkout Source Repository
+        uses: actions/checkout@v4
+
+      - name: Update Scoreboard
+        env:
+          AOC_SESSION_TOKEN: ${{secrets.AOC_SESSION_TOKEN}}
+        run: ./scripts/update_scoreboard.sh
+
+      - name: Commit and Push Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update Scoreboard
