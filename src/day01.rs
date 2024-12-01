@@ -32,27 +32,45 @@ fn part1((left, right): &(Vec<u32>, Vec<u32>)) -> u32 {
         .sum()
 }
 
+#[aoc(day1, part2)]
+fn part2((left, right): &(Vec<u32>, Vec<u32>)) -> u32 {
+    left.iter()
+        .map(|l| l * right.iter().filter(|r| r == &l).count() as u32)
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
 
     use super::*;
 
+    const EXAMPLE1: &str = indoc! {"
+        3   4
+        4   3
+        2   5
+        1   3
+        3   9
+        3   3
+    "};
+
     #[test]
     fn part1_example1() {
-        let input = indoc! {"
-            3   4
-            4   3
-            2   5
-            1   3
-            3   9
-            3   3
-        "};
-        assert_eq!(11, part1(&parse(input).unwrap()));
+        assert_eq!(11, part1(&parse(EXAMPLE1).unwrap()));
     }
 
     #[test]
     fn part1_input() {
         assert_eq!(2904518, part1(&parse(include_str!("../input/2024/day1.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(31, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(18650129, part2(&parse(include_str!("../input/2024/day1.txt")).unwrap()));
     }
 }
