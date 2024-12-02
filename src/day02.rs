@@ -15,35 +15,54 @@ fn parse(input: &str) -> Result<Vec<Vec<u32>>> {
         .collect()
 }
 
-#[aoc(day2, part1)]
-fn part1(reports: &[Vec<u32>]) -> usize {
+fn is_valid_report<'a>(report: impl Iterator<Item = &'a u32>) -> bool {
+    use std::cmp::Ordering::Equal;
+    use itertools::FoldWhile::{Continue, Done};
+
+    report
+        .tuple_windows()
+        .map(|(a, b)| (a.cmp(b), a.abs_diff(*b)))
+        .fold_while(None, |existing_ordering, (ordering, diff)| {
+            if diff > 3 {
+                return Done(None);
+            }
+
+            match (ordering, existing_ordering) {
+                (Equal, _) => Done(None),
+                (_, None) => Continue(Some(ordering)),
+                (a, Some(b)) if a == b => Continue(Some(ordering)),
+                (_, Some(_)) => Done(None),
+            }
+        })
+        .into_inner()
+        .is_some()
+}
+
+fn solve(reports: &[Vec<u32>], test: impl Fn(&[u32]) -> bool) -> usize {
     reports
         .iter()
-        .filter(|report| report.iter().is_sorted() || report.iter().rev().is_sorted())
-        .filter(|report| report.iter().tuple_windows().all(|(&a, &b)| (1..=3).contains(&a.abs_diff(b))))
+        .filter(|report| test(report))
         .count()
+}
+
+#[aoc(day2, part1)]
+fn part1(reports: &[Vec<u32>]) -> usize {
+    solve(reports, |report| is_valid_report(report.iter()))
 }
 
 #[aoc(day2, part2)]
 fn part2(reports: &[Vec<u32>]) -> usize {
-    reports
-        .iter()
-        .filter(|report| {
-            (0..report.len())
-                .into_iter()
-                .any(|i| {
-                    if !(report.iter().enumerate().filter(|(j, _)| *j != i).is_sorted_by_key(|(_, l)| l) || report.iter().enumerate().rev().filter(|(j, _)| *j != i).is_sorted_by_key(|(_, l)| l)) {
-                        return false;
-                    }
-
-                    if !report.iter().enumerate().filter_map(|(j, l)| if j != i { Some(l) } else { None }).tuple_windows().all(|(&a, &b)| (1..=3).contains(&a.abs_diff(b))) {
-                        return false;
-                    }
-
-                    true
-                })
+    solve(reports, |report| {
+        (0..report.len()).any(|i| {
+            is_valid_report(
+                report
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| *j != i)
+                    .map(|(_, l)| l)
+            )
         })
-        .count()
+    })
 }
 
 #[cfg(test)]
