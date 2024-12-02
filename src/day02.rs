@@ -24,6 +24,28 @@ fn part1(reports: &[Vec<u32>]) -> usize {
         .count()
 }
 
+#[aoc(day2, part2)]
+fn part2(reports: &[Vec<u32>]) -> usize {
+    reports
+        .iter()
+        .filter(|report| {
+            (0..report.len())
+                .into_iter()
+                .any(|i| {
+                    if !(report.iter().enumerate().filter(|(j, _)| *j != i).is_sorted_by_key(|(_, l)| l) || report.iter().enumerate().rev().filter(|(j, _)| *j != i).is_sorted_by_key(|(_, l)| l)) {
+                        return false;
+                    }
+
+                    if !report.iter().enumerate().filter_map(|(j, l)| if j != i { Some(l) } else { None }).tuple_windows().all(|(&a, &b)| (1..=3).contains(&a.abs_diff(b))) {
+                        return false;
+                    }
+
+                    true
+                })
+        })
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
@@ -47,5 +69,15 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(402, part1(&parse(include_str!("../input/2024/day2.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(4, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(455, part2(&parse(include_str!("../input/2024/day2.txt")).unwrap()));
     }
 }
