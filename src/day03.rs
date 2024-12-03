@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
 use regex::Regex;
 
@@ -7,49 +7,43 @@ fn parse(input: &str) -> String {
     input.to_owned()
 }
 
-#[aoc(day3, part1)]
-fn part1(input: &str) -> Result<u32> {
-    let pattern = Regex::new(r"mul\((\d+),(\d+)\)").unwrap();
-
-    pattern
-        .captures_iter(input)
-        .map(|c| {
-            let (_, [a, b]) = c.extract();
-            let a = a.parse::<u32>()?;
-            let b = b.parse::<u32>()?;
-
-            Ok(a * b)
-        })
-        .sum()
-}
-
-
-#[aoc(day3, part2)]
-fn part2(input: &str) -> Result<u32> {
+fn solve(input: &str, conditionals_enabled: bool) -> Result<u32> {
     let ins_pattern = Regex::new(r"(do\(\)|don't\(\)|mul\(\d+,\d+\))").unwrap();
     let mul_pattern = Regex::new(r"mul\((\d+),(\d+)\)").unwrap();
 
     let (_, sum) = ins_pattern
         .captures_iter(input)
-        .fold((true, 0), |(mul_enabled, sum), c| {
-            match c.extract() {
-                (_, ["do()"]) => (true, sum),
-                (_, ["don't()"]) => (false, sum),
-                (_, [mul]) => {
-                    if !mul_enabled {
-                        return (mul_enabled, sum)
-                    }
+        .try_fold((true, 0), |(mul_enabled, sum), c| -> Result<(bool, u32)> {
+            let (_, [instruction]) = c.extract();
+            let mul_enabled = mul_enabled || !conditionals_enabled;
 
-                    let mul = mul_pattern.captures(mul).unwrap();
+            let (mul_enabled, sum) = match (mul_enabled, instruction) {
+                (_, "do()") => (true, sum),
+                (_, "don't()") => (false, sum),
+                (false, _) => (false, sum),
+                (true, mul) => {
+                    let mul = mul_pattern.captures(mul).context(format!("Failed to parse instruction: {mul}"))?;
                     let (_, [a, b]) = mul.extract();
-                    let a = a.parse::<u32>().unwrap();
-                    let b = b.parse::<u32>().unwrap();
+                    let a = a.parse::<u32>().context(format!("Failed to parse int: {a}"))?;
+                    let b = b.parse::<u32>().context(format!("Failed to parse int: {b}"))?;
                     (mul_enabled, sum + a * b)
                 },
-            }
-        });
+            };
+
+            Ok((mul_enabled, sum))
+        })?;
 
     Ok(sum)
+}
+
+#[aoc(day3, part1)]
+fn part1(input: &str) -> Result<u32> {
+    solve(input, false)
+}
+
+#[aoc(day3, part2)]
+fn part2(input: &str) -> Result<u32> {
+    solve(input, true)
 }
 
 #[cfg(test)]
