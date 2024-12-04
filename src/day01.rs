@@ -4,20 +4,18 @@ use itertools::Itertools;
 
 #[aoc_generator(day1)]
 fn parse(input: &str) -> Result<(Vec<u32>, Vec<u32>)> {
-    Ok(
-        input
-            .lines()
-            .map(|line| {
-                let (left, right) = line
-                    .split_once("   ")
-                    .context(format!("Unable to parse line: {}", line))?;
-                let left: u32 = left.parse()?;
-                let right: u32 = right.parse()?;
+    input
+        .lines()
+        .map(|line| {
+            let (left, right) = line
+                .split_once("   ")
+                .context(format!("Unable to parse line: {}", line))?;
+            let left: u32 = left.parse()?;
+            let right: u32 = right.parse()?;
 
-                Ok((left, right)) as Result<(u32, u32)>
-            })
-            .process_results(|iter| iter.unzip())?
-    )
+            Ok((left, right))
+        })
+        .process_results(|iter| iter.unzip())
 }
 
 #[aoc(day1, part1)]
