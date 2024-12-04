@@ -78,6 +78,7 @@ fn part1(input: &HashMap<(isize, isize), char>) -> usize {
                     .collect_vec()
             })
             .collect_vec();
+
     count_valid_positions(input, &valid_possibilities, XMAS[0])
 }
 
