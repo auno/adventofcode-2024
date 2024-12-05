@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
+use itertools::Itertools;
 
 type Rules = Vec<(u32, u32)>;
 type Updates = Vec<Vec<u32>>;
@@ -64,6 +65,46 @@ fn part1((rules, updates): &(Rules, Updates)) -> u32 {
         .sum()
 }
 
+
+#[aoc(day5, part2)]
+fn part2((rules, updates): &(Rules, Updates)) -> u32 {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let pages = update.iter().copied().collect::<HashSet<_>>();
+
+            let rules = rules
+                .iter()
+                .filter(|(l, r)| pages.contains(l) && pages.contains(r))
+                .collect_vec();
+
+            let mut remaining_pages = update.iter().copied().collect_vec();
+            let mut ordered_pages = vec![];
+
+            while !remaining_pages.is_empty() {
+                let next_page = *remaining_pages
+                    .iter()
+                    .find(|p| {
+                        rules
+                            .iter()
+                            .filter(|(_, r)| r == *p)
+                            .all(|(l, _)| ordered_pages.contains(l))
+                    })
+                    .expect("Unreachable: There should always be exactly one");
+
+                ordered_pages.push(next_page);
+                remaining_pages.retain(|p| p != &next_page);
+            }
+
+            if update.iter().eq(ordered_pages.iter()) {
+                return None;
+            }
+
+            ordered_pages.get(ordered_pages.len() / 2).cloned()
+        })
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
@@ -109,5 +150,15 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(6949, part1(&parse(include_str!("../input/2024/day5.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(123, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(4145, part2(&parse(include_str!("../input/2024/day5.txt")).unwrap()));
     }
 }
