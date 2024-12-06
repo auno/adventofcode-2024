@@ -4,6 +4,7 @@ use aoc_runner_derive::{aoc, aoc_generator};
 use anyhow::{bail, Context, Error, Result};
 use itertools::Itertools;
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum Tile {
     Free,
     Obstructed,
@@ -21,7 +22,7 @@ impl TryFrom<char> for Tile {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 enum Direction {
     Up,
     Right,
@@ -81,18 +82,24 @@ fn parse(input: &str) -> Result<(Map, Position)> {
     Ok((map, guard_pos.context("No guard position found")?))
 }
 
-#[aoc(day6, part1)]
-fn part1((map, guard_pos): &(Map, Position)) -> usize {
-    let mut seen = HashSet::from([*guard_pos]);
-    let mut position = *guard_pos;
+fn resolve_path(map: &Map, position: Position) -> (Vec<Position>, bool) {
+    let mut position = position;
     let mut direction = Direction::Up;
+    let mut path = vec![position];
+    let mut seen = HashSet::from([(position, direction)]);
 
     loop {
         let candidate_position = position.step(direction);
+
+        if seen.contains(&(candidate_position, direction)) {
+            return (path, true);
+        }
+
         match map.get(&candidate_position) {
             Some(Tile::Free) => {
                 position = candidate_position;
-                seen.insert(candidate_position);
+                seen.insert((candidate_position, direction));
+                path.push(candidate_position);
             },
             Some(Tile::Obstructed) => {
                 direction = direction.turn();
@@ -101,7 +108,30 @@ fn part1((map, guard_pos): &(Map, Position)) -> usize {
         }
     }
 
-    seen.len()
+    (path, false)
+}
+
+#[aoc(day6, part1)]
+fn part1((map, guard_pos): &(Map, Position)) -> usize {
+    let (path, _) = resolve_path(map, *guard_pos);
+    path.iter().unique().count()
+}
+
+#[aoc(day6, part2)]
+fn part2((map, guard_pos): &(Map, Position)) -> usize {
+    let (path, _) = resolve_path(map, *guard_pos);
+    let mut map = map.clone();
+
+    path.into_iter()
+        .filter(|position| position != guard_pos)
+        .unique()
+        .filter(|position| {
+            map.insert(*position, Tile::Obstructed);
+            let (_, cycle) = resolve_path(&map, *guard_pos);
+            map.insert(*position, Tile::Free);
+            cycle
+        })
+        .count()
 }
 
 #[cfg(test)]
@@ -131,5 +161,16 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(5095, part1(&parse(include_str!("../input/2024/day6.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(6, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    #[ignore]
+    fn part2_input() {
+        assert_eq!(1933, part2(&parse(include_str!("../input/2024/day6.txt")).unwrap()));
     }
 }
