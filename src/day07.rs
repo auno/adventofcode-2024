@@ -1,8 +1,32 @@
-use std::iter::repeat_n;
-
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use itertools::Itertools;
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum Operator {
+    Add,
+    Multiply,
+    Concatenate,
+}
+
+impl Operator {
+    fn apply(self, a: u64, b: u64) -> u64 {
+        match self {
+            Operator::Add => a + b,
+            Operator::Multiply => a * b,
+            Operator::Concatenate => {
+                let mut shifted = a;
+                let mut unshifted = b;
+
+                while unshifted > 0 {
+                    shifted *= 10;
+                    unshifted /= 10;
+                }
+
+                shifted + b
+            }
+        }
+    }
+}
 
 type Input = Vec<(u64, Vec<u64>)>;
 
@@ -14,7 +38,7 @@ fn parse(input: &str) -> Result<Input> {
             let mut numbers = line
                 .split([' ', ':'])
                 .filter(|s| !s.is_empty())
-                .map(|s| s.parse::<u64>().context(format!("Could not parse number: {s}")));
+                .map(|s| s.parse::<u64>().context(format!("Unable to parse number: {s}")));
 
             let test_value = numbers
                 .next()
@@ -27,52 +51,30 @@ fn parse(input: &str) -> Result<Input> {
         .collect()
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum Operator {
-    Add,
-    Multiply,
-    Concatenate,
+fn has_valid_solution(test_value: u64, result: u64, operands: &[u64], operators: &[Operator]) -> bool {
+    if operands.is_empty() { return result == test_value; }
+    if result > test_value { return false; }
+
+    let operand = operands[0];
+
+    for operator in operators {
+        if has_valid_solution(test_value, operator.apply(result, operand), &operands[1..], operators) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn solve(input: &Input, operators: &[Operator]) -> u64 {
     input
         .iter()
         .filter_map(|(test_value, operands)| {
-            let first_operand = *operands.first()?;
-            repeat_n(operators, operands.len() - 1)
-                .multi_cartesian_product()
-                .find_map(|operators| {
-                    let result = &operands[1..]
-                        .iter()
-                        .zip(operators.iter())
-                        .fold(first_operand, |result, (operand, operator)| {
-                            if result > *test_value {
-                                return result;
-                            }
+            if has_valid_solution(*test_value, *operands.first()?, &operands[1..], operators) {
+                return Some(test_value);
+            }
 
-                            match operator {
-                                Operator::Add => result + operand,
-                                Operator::Multiply => result * operand,
-                                Operator::Concatenate => {
-                                    let mut shifted = result;
-                                    let mut unshifted = *operand;
-
-                                    while unshifted > 0 {
-                                        shifted *= 10;
-                                        unshifted /= 10;
-                                    }
-
-                                    shifted + operand
-                                }
-                            }
-                        });
-
-                    if result == test_value {
-                        return Some(test_value);
-                    }
-
-                    None
-                })
+            None
         })
         .sum()
 }
