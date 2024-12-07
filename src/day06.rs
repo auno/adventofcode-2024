@@ -1,9 +1,8 @@
-use core::cmp::{min, max};
 use std::collections::{HashMap, HashSet};
 
 use aoc_runner_derive::{aoc, aoc_generator};
 use anyhow::{bail, Context, Error, Result};
-use itertools::Itertools;
+use itertools::{chain, Itertools};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum Tile {
@@ -121,6 +120,74 @@ fn resolve_path(map: &Map, position: Position) -> (Vec<Position>, bool) {
     (path, false)
 }
 
+struct JumpMap {
+    map: HashMap<(Position, Direction), Position>,
+}
+
+impl JumpMap {
+    fn new(map: &Map) -> JumpMap {
+        let mut jump_map = HashMap::<(Position, Direction), Position>::new();
+        let (rows, cols) = map.keys()
+            .fold((0, 0), |(rows, cols), Position(i, j)| (
+                rows.max(i + 1),
+                cols.max(j + 1),
+            ));
+
+        let starters = Vec::from_iter(chain!(
+            (0..rows).map(|i| (Position(i, -1), Direction::Right)),
+            (0..rows).map(|i| (Position(i, cols), Direction::Left)),
+            (0..cols).map(|j| (Position(-1, j), Direction::Down)),
+            (0..cols).map(|j| (Position(rows, j), Direction::Up)),
+        ));
+
+        'outer: for (position, direction) in starters {
+            let mut current_position = position;
+            let mut sources = vec![];
+
+            loop {
+                let next_position = current_position.step(direction);
+
+                match map.get(&next_position) {
+                    None => { continue 'outer; },
+                    Some(Tile::Free) => {},
+                    Some(Tile::Obstructed) => {
+                        for source in &sources {
+                            jump_map.insert((*source, direction), current_position);
+                        }
+                        sources.clear();
+                    },
+                }
+
+                current_position = next_position;
+                sources.push(current_position);
+            }
+        }
+
+        JumpMap { map: jump_map }
+    }
+
+    fn jump(&self, current_position: Position, current_direction: Direction, obstruction_position: Position) -> Option<Position> {
+        let Position(ci, cj) = current_position;
+        let Position(oi, oj) = obstruction_position;
+
+        let jump_destination = self.map.get(&(current_position, current_direction)).copied();
+
+        /* If jump_destination is None, use out-of-bounds coordinates to satisfy interception check. */
+        let Position(di, dj) = jump_destination.unwrap_or(match current_direction {
+            Direction::Up | Direction::Left => Position(-1, -1),
+            Direction::Down | Direction::Right => Position(1000, 1000),
+        });
+
+        match current_direction {
+            Direction::Left if ci != oi || cj < oj || oj < dj => jump_destination,
+            Direction::Right if ci != oi || cj > oj || oj > dj => jump_destination,
+            Direction::Up if cj != oj || ci < oi || oi < di => jump_destination,
+            Direction::Down if cj != oj || ci > oi || oi > di => jump_destination,
+            _ => Some(obstruction_position.step(current_direction.opposite())),
+        }
+    }
+}
+
 #[aoc(day6, part1)]
 fn part1((map, guard_pos): &(Map, Position)) -> usize {
     let (path, _) = resolve_path(map, *guard_pos);
@@ -131,82 +198,7 @@ fn part1((map, guard_pos): &(Map, Position)) -> usize {
 fn part2((map, guard_pos): &(Map, Position)) -> usize {
     let (path, _) = resolve_path(map, *guard_pos);
     let mut map = map.clone();
-
-    let mut jump_map = HashMap::<(Position, Direction), Position>::new();
-    let (rows, cols) = map.keys()
-        .fold((0, 0), |(rows, cols), Position(i, j)| (
-            rows.max(i + 1),
-            cols.max(j + 1),
-        ));
-
-    let mut starters = vec![];
-
-    (0..rows).map(|i| (Position(i, -1), Direction::Right)).for_each(|x| starters.push(x));
-    (0..rows).map(|i| (Position(i, cols), Direction::Left)).for_each(|x| starters.push(x));
-    (0..cols).map(|j| (Position(-1, j), Direction::Down)).for_each(|x| starters.push(x));
-    (0..cols).map(|j| (Position(rows, j), Direction::Up)).for_each(|x| starters.push(x));
-
-    'outer: for (position, direction) in starters {
-        let mut current_position = position;
-        let mut sources = vec![];
-
-        loop {
-            let next_position = current_position.step(direction);
-
-            match map.get(&next_position) {
-                None => { continue 'outer; },
-                Some(Tile::Free) => {},
-                Some(Tile::Obstructed) => {
-                    for source in &sources {
-                        jump_map.insert((*source, direction), current_position);
-                    }
-                    sources.clear();
-                },
-            }
-
-            current_position = next_position;
-            sources.push(current_position);
-        }
-    }
-
-    let resolve_next_position = |
-        current_position: Position,
-        current_direction: Direction,
-        obstruction_position: Position,
-    | -> Option<Position> {
-        let Position(ci, cj) = current_position;
-        let Position(oi, oj) = obstruction_position;
-
-        let Some(&jump_destination) = jump_map.get(&(current_position, current_direction)) else {
-            return match current_direction {
-                Direction::Up if (cj != oj || oi > ci) => None,
-                Direction::Down if (cj != oj || oi < ci) => None,
-                Direction::Right if (ci != oi || oj < cj) => None,
-                Direction::Left if (ci != oi || oj > cj) => None,
-                _ => Some(obstruction_position.step(current_direction.opposite())),
-            }
-        };
-
-        Some(
-            match (current_position, obstruction_position, jump_destination) {
-                (Position(ci, cj), Position(oi, oj), Position(di, dj)) if ci == oi && oi == di => {
-                    if (min(cj, dj)..=max(cj, dj)).contains(&oj) {
-                        obstruction_position.step(current_direction.opposite())
-                    } else {
-                        jump_destination
-                    }
-                }
-                (Position(ci, cj), Position(oi, oj), Position(di, dj)) if cj == oj && oj == dj => {
-                    if (min(ci, di)..=max(ci, di)).contains(&oi) {
-                        obstruction_position.step(current_direction.opposite())
-                    } else {
-                        jump_destination
-                    }
-                }
-                _ => jump_destination,
-            }
-        )
-    };
+    let jump_map = JumpMap::new(&map);
 
     path.into_iter()
         .unique()
@@ -221,7 +213,7 @@ fn part2((map, guard_pos): &(Map, Position)) -> usize {
             let cycle = loop {
                 seen.insert((current_position, current_direction));
 
-                let Some(next_position) = resolve_next_position(current_position, current_direction, *obstruction_position) else {
+                let Some(next_position) = jump_map.jump(current_position, current_direction, *obstruction_position) else {
                     break false;
                 };
                 let next_direction = current_direction.turn();
