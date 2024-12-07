@@ -31,6 +31,7 @@ fn parse(input: &str) -> Result<Input> {
 enum Operator {
     Add,
     Multiply,
+    Concatenate,
 }
 
 #[aoc(day7, part1)]
@@ -49,6 +50,51 @@ fn part1(input: &Input) -> u64 {
                             match operator {
                                 Operator::Add => result + operand,
                                 Operator::Multiply => result * operand,
+                                Operator::Concatenate => unimplemented!(),
+                            }
+                        });
+
+                    if result == test_value {
+                        return Some(test_value);
+                    }
+
+                    None
+                })
+        })
+        .sum()
+}
+
+#[aoc(day7, part2)]
+fn part2(input: &Input) -> u64 {
+    input
+        .iter()
+        .filter_map(|(test_value, operands)| {
+            let first_operand = *operands.first()?;
+            repeat_n([Operator::Add, Operator::Multiply, Operator::Concatenate], operands.len() - 1)
+                .multi_cartesian_product()
+                .find_map(|operators| {
+                    let result = &operands[1..]
+                        .iter()
+                        .zip(operators.iter())
+                        .fold(first_operand, |result, (operand, operator)| {
+                            if result > *test_value {
+                                return result;
+                            }
+
+                            match operator {
+                                Operator::Add => result + operand,
+                                Operator::Multiply => result * operand,
+                                Operator::Concatenate => {
+                                    let mut shifted = result;
+                                    let mut unshifted = *operand;
+
+                                    while unshifted > 0 {
+                                        shifted *= 10;
+                                        unshifted /= 10;
+                                    }
+
+                                    shifted + operand
+                                }
                             }
                         });
 
@@ -88,5 +134,15 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(1298300076754, part1(&parse(include_str!("../input/2024/day7.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(11387, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(248427118972289, part2(&parse(include_str!("../input/2024/day7.txt")).unwrap()));
     }
 }
