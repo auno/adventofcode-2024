@@ -34,43 +34,12 @@ enum Operator {
     Concatenate,
 }
 
-#[aoc(day7, part1)]
-fn part1(input: &Input) -> u64 {
+fn solve(input: &Input, operators: &[Operator]) -> u64 {
     input
         .iter()
         .filter_map(|(test_value, operands)| {
             let first_operand = *operands.first()?;
-            repeat_n([Operator::Add, Operator::Multiply], operands.len() - 1)
-                .multi_cartesian_product()
-                .find_map(|operators| {
-                    let result = &operands[1..]
-                        .iter()
-                        .zip(operators.iter())
-                        .fold(first_operand, |result, (operand, operator)| {
-                            match operator {
-                                Operator::Add => result + operand,
-                                Operator::Multiply => result * operand,
-                                Operator::Concatenate => unimplemented!(),
-                            }
-                        });
-
-                    if result == test_value {
-                        return Some(test_value);
-                    }
-
-                    None
-                })
-        })
-        .sum()
-}
-
-#[aoc(day7, part2)]
-fn part2(input: &Input) -> u64 {
-    input
-        .iter()
-        .filter_map(|(test_value, operands)| {
-            let first_operand = *operands.first()?;
-            repeat_n([Operator::Add, Operator::Multiply, Operator::Concatenate], operands.len() - 1)
+            repeat_n(operators, operands.len() - 1)
                 .multi_cartesian_product()
                 .find_map(|operators| {
                     let result = &operands[1..]
@@ -106,6 +75,16 @@ fn part2(input: &Input) -> u64 {
                 })
         })
         .sum()
+}
+
+#[aoc(day7, part1)]
+fn part1(input: &Input) -> u64 {
+    solve(input, &[Operator::Add, Operator::Multiply])
+}
+
+#[aoc(day7, part2)]
+fn part2(input: &Input) -> u64 {
+    solve(input, &[Operator::Add, Operator::Multiply, Operator::Concatenate])
 }
 
 #[cfg(test)]
