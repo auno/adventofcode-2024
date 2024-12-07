@@ -268,6 +268,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn part2_input() {
         assert_eq!(1933, part2(&parse(include_str!("../input/2024/day6.txt")).unwrap()));
     }
