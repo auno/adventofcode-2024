@@ -1,3 +1,4 @@
+use core::cmp::{min, max};
 use std::collections::{HashMap, HashSet};
 
 use aoc_runner_derive::{aoc, aoc_generator};
@@ -37,6 +38,15 @@ impl Direction {
             Direction::Right => Direction::Down,
             Direction::Down => Direction::Left,
             Direction::Left => Direction::Up,
+        }
+    }
+
+    fn opposite(self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Right => Direction::Left,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
         }
     }
 }
@@ -122,13 +132,110 @@ fn part2((map, guard_pos): &(Map, Position)) -> usize {
     let (path, _) = resolve_path(map, *guard_pos);
     let mut map = map.clone();
 
+    let mut jump_map = HashMap::<(Position, Direction), Position>::new();
+    let (rows, cols) = map.keys()
+        .fold((0, 0), |(rows, cols), Position(i, j)| (
+            rows.max(i + 1),
+            cols.max(j + 1),
+        ));
+
+    let mut starters = vec![];
+
+    (0..rows).map(|i| (Position(i, -1), Direction::Right)).for_each(|x| starters.push(x));
+    (0..rows).map(|i| (Position(i, cols), Direction::Left)).for_each(|x| starters.push(x));
+    (0..cols).map(|j| (Position(-1, j), Direction::Down)).for_each(|x| starters.push(x));
+    (0..cols).map(|j| (Position(rows, j), Direction::Up)).for_each(|x| starters.push(x));
+
+    'outer: for (position, direction) in starters {
+        let mut current_position = position;
+        let mut sources = vec![];
+
+        loop {
+            let next_position = current_position.step(direction);
+
+            match map.get(&next_position) {
+                None => { continue 'outer; },
+                Some(Tile::Free) => {},
+                Some(Tile::Obstructed) => {
+                    for source in &sources {
+                        jump_map.insert((*source, direction), current_position);
+                    }
+                    sources.clear();
+                },
+            }
+
+            current_position = next_position;
+            sources.push(current_position);
+        }
+    }
+
+    let resolve_next_position = |
+        current_position: Position,
+        current_direction: Direction,
+        obstruction_position: Position,
+    | -> Option<Position> {
+        let Position(ci, cj) = current_position;
+        let Position(oi, oj) = obstruction_position;
+
+        let Some(&jump_destination) = jump_map.get(&(current_position, current_direction)) else {
+            return match current_direction {
+                Direction::Up if (cj != oj || oi > ci) => None,
+                Direction::Down if (cj != oj || oi < ci) => None,
+                Direction::Right if (ci != oi || oj < cj) => None,
+                Direction::Left if (ci != oi || oj > cj) => None,
+                _ => Some(obstruction_position.step(current_direction.opposite())),
+            }
+        };
+
+        Some(
+            match (current_position, obstruction_position, jump_destination) {
+                (Position(ci, cj), Position(oi, oj), Position(di, dj)) if ci == oi && oi == di => {
+                    if (min(cj, dj)..=max(cj, dj)).contains(&oj) {
+                        obstruction_position.step(current_direction.opposite())
+                    } else {
+                        jump_destination
+                    }
+                }
+                (Position(ci, cj), Position(oi, oj), Position(di, dj)) if cj == oj && oj == dj => {
+                    if (min(ci, di)..=max(ci, di)).contains(&oi) {
+                        obstruction_position.step(current_direction.opposite())
+                    } else {
+                        jump_destination
+                    }
+                }
+                _ => jump_destination,
+            }
+        )
+    };
+
     path.into_iter()
-        .filter(|position| position != guard_pos)
         .unique()
-        .filter(|position| {
-            map.insert(*position, Tile::Obstructed);
-            let (_, cycle) = resolve_path(&map, *guard_pos);
-            map.insert(*position, Tile::Free);
+        .filter(|position| position != guard_pos)
+        .filter(|obstruction_position| {
+            map.insert(*obstruction_position, Tile::Obstructed);
+
+            let mut current_position = *guard_pos;
+            let mut current_direction = Direction::Up;
+            let mut seen = HashSet::<_>::new();
+
+            let cycle = loop {
+                seen.insert((current_position, current_direction));
+
+                let Some(next_position) = resolve_next_position(current_position, current_direction, *obstruction_position) else {
+                    break false;
+                };
+                let next_direction = current_direction.turn();
+
+                if seen.contains(&(next_position, next_direction)) {
+                    break true;
+                }
+
+                current_position = next_position;
+                current_direction = next_direction;
+            };
+
+            map.insert(*obstruction_position, Tile::Free);
+
             cycle
         })
         .count()
@@ -169,7 +276,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn part2_input() {
         assert_eq!(1933, part2(&parse(include_str!("../input/2024/day6.txt")).unwrap()));
     }
