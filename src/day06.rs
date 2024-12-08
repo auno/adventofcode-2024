@@ -1,11 +1,10 @@
-use std::collections::{HashMap, HashSet};
-
 use aoc_runner_derive::{aoc, aoc_generator};
 use anyhow::{bail, Context, Error, Result};
 use itertools::{chain, Itertools};
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 enum Tile {
+    #[default]
     Free,
     Obstructed,
 }
@@ -65,10 +64,56 @@ impl Position {
     }
 }
 
-type Map = HashMap<Position, Tile>;
+#[derive(Clone)]
+struct Grid<T> where T: Copy + Clone {
+    store: Vec<Vec<T>>,
+    rows: isize,
+    cols: isize,
+}
+
+impl<T> Grid<T> where T: Copy + Clone {
+    fn new_with_value(rows: isize, cols: isize, value: T) -> Grid<T> {
+        Grid {
+            store: vec![vec![value; cols as usize]; rows as usize],
+            rows,
+            cols,
+        }
+    }
+}
+
+impl<T> Grid<T> where T: Default + Copy + Clone {
+    fn new(rows: isize, cols: isize) -> Grid<T> {
+        Self::new_with_value(rows, cols, T::default())
+    }
+
+    fn get(&self, &Position(i, j): &Position) -> Option<&T> {
+        if i < 0 || i >= self.rows || j < 0 || j >= self.cols {
+            return None;
+        }
+
+        Some(&self.store[i as usize][j as usize])
+    }
+
+    fn get_mut(&mut self, &Position(i, j): &Position) -> Option<&mut T> {
+        if i < 0 || i >= self.rows || j < 0 || j >= self.cols {
+            return None;
+        }
+
+        Some(&mut self.store[i as usize][j as usize])
+    }
+
+    fn set(&mut self, &Position(i, j): &Position, value: T) {
+        self.store[i as usize][j as usize] = value;
+    }
+}
+
+type Map = Grid<Tile>;
 
 #[aoc_generator(day6)]
 fn parse(input: &str) -> Result<(Map, Position)> {
+    let rows = input.lines().count() as isize;
+    let cols = input.lines().next().map(str::len).unwrap_or(0) as isize;
+
     let (map, guard_pos) = input
         .lines()
         .enumerate()
@@ -83,8 +128,8 @@ fn parse(input: &str) -> Result<(Map, Position)> {
                 _ => Ok((pos, Tile::try_from(c)?, false)),
             }
         })
-        .fold_ok((HashMap::<_,_>::new(), None), |(mut acc, guard_pos), (pos, tile, is_guard_pos )| {
-            acc.insert(pos, tile);
+        .fold_ok((Grid::new(rows, cols), None), |(mut acc, guard_pos), (pos, tile, is_guard_pos)| {
+            acc.set(&pos, tile);
             (acc, if is_guard_pos { Some(pos) } else { guard_pos })
         })?;
 
@@ -95,19 +140,19 @@ fn resolve_path(map: &Map, position: Position) -> (Vec<Position>, bool) {
     let mut position = position;
     let mut direction = Direction::Up;
     let mut path = vec![position];
-    let mut seen = HashSet::from([(position, direction)]);
+    let mut seen = Grid::new_with_value(map.rows, map.cols, [false; 4]);
 
     loop {
         let candidate_position = position.step(direction);
 
-        if seen.contains(&(candidate_position, direction)) {
+        if seen.get(&candidate_position).unwrap_or(&[false; 4])[direction as usize] {
             return (path, true);
         }
 
         match map.get(&candidate_position) {
             Some(Tile::Free) => {
                 position = candidate_position;
-                seen.insert((candidate_position, direction));
+                seen.get_mut(&candidate_position).unwrap()[direction as usize] = true;
                 path.push(candidate_position);
             },
             Some(Tile::Obstructed) => {
@@ -121,17 +166,15 @@ fn resolve_path(map: &Map, position: Position) -> (Vec<Position>, bool) {
 }
 
 struct JumpMap {
-    map: HashMap<(Position, Direction), Position>,
+    map: Grid<[Option<Position>; 4]>,
 }
 
 impl JumpMap {
     fn new(map: &Map) -> JumpMap {
-        let mut jump_map = HashMap::<(Position, Direction), Position>::new();
-        let (rows, cols) = map.keys()
-            .fold((0, 0), |(rows, cols), Position(i, j)| (
-                rows.max(i + 1),
-                cols.max(j + 1),
-            ));
+        let mut jump_map = Grid::new_with_value(map.rows, map.cols, [None; 4]);
+
+        let rows = map.rows;
+        let cols = map.cols;
 
         let starters = Vec::from_iter(chain!(
             (0..rows).map(|i| (Position(i, -1), Direction::Right)),
@@ -152,7 +195,7 @@ impl JumpMap {
                     Some(Tile::Free) => {},
                     Some(Tile::Obstructed) => {
                         for source in &sources {
-                            jump_map.insert((*source, direction), current_position);
+                            jump_map.get_mut(source).unwrap()[direction as usize] = Some(current_position);
                         }
                         sources.clear();
                     },
@@ -170,7 +213,9 @@ impl JumpMap {
         let Position(ci, cj) = current_position;
         let Position(oi, oj) = obstruction_position;
 
-        let jump_destination = self.map.get(&(current_position, current_direction)).copied();
+        let jump_destination = self.map
+            .get(&current_position)
+            .and_then(|dv| dv[current_direction as usize]);
 
         /* If jump_destination is None, use out-of-bounds coordinates to satisfy interception check. */
         let Position(di, dj) = jump_destination.unwrap_or(match current_direction {
@@ -204,21 +249,21 @@ fn part2((map, guard_pos): &(Map, Position)) -> usize {
         .unique()
         .filter(|position| position != guard_pos)
         .filter(|obstruction_position| {
-            map.insert(*obstruction_position, Tile::Obstructed);
+            map.set(obstruction_position, Tile::Obstructed);
 
             let mut current_position = *guard_pos;
             let mut current_direction = Direction::Up;
-            let mut seen = HashSet::<_>::new();
+            let mut seen = Grid::new_with_value(map.rows, map.cols, [false; 4]);
 
             let cycle = loop {
-                seen.insert((current_position, current_direction));
+                seen.get_mut(&current_position).unwrap()[current_direction as usize] = true;
 
                 let Some(next_position) = jump_map.jump(current_position, current_direction, *obstruction_position) else {
                     break false;
                 };
                 let next_direction = current_direction.turn();
 
-                if seen.contains(&(next_position, next_direction)) {
+                if seen.get(&next_position).unwrap_or(&[false; 4])[next_direction as usize] {
                     break true;
                 }
 
@@ -226,7 +271,7 @@ fn part2((map, guard_pos): &(Map, Position)) -> usize {
                 current_direction = next_direction;
             };
 
-            map.insert(*obstruction_position, Tile::Free);
+            map.set(obstruction_position, Tile::Free);
 
             cycle
         })
@@ -268,7 +313,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn part2_input() {
         assert_eq!(1933, part2(&parse(include_str!("../input/2024/day6.txt")).unwrap()));
     }
