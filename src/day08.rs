@@ -1,6 +1,3 @@
-
-use std::collections::HashMap;
-
 use anyhow::{bail, Error, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
 use itertools::Itertools;
@@ -19,7 +16,7 @@ impl TryFrom<char> for Antenna {
     }
 }
 
-type Input = (HashMap<(isize, isize), Antenna>, (isize, isize));
+type Input = (Vec<(Antenna, (isize, isize))>, (isize, isize));
 
 #[aoc_generator(day8)]
 fn parse(input: &str) -> Result<Input> {
@@ -31,55 +28,50 @@ fn parse(input: &str) -> Result<Input> {
         .enumerate()
         .flat_map(|(i, line)| line.chars().enumerate().map(move |(j, c)| ((i, j), c)))
         .filter(|(_, c)| *c != '.')
-        .map(move |((i, j), c)| Ok(((i as isize, j as isize), Antenna::try_from(c)?)))
+        .map(move |((i, j), c)| Ok((Antenna::try_from(c)?, (i as isize, j as isize))))
         .collect::<Result<_>>();
 
     Ok((antennas?, (rows, cols)))
 }
 
-#[aoc(day8, part1)]
-fn part1((antennas, (rows, cols)): &Input) -> usize {
+fn solve<K>(
+    antennas: &[(Antenna, (isize, isize))],
+    (rows, cols): (isize, isize),
+    antinode_coefficients: K
+) -> usize
+    where K: IntoIterator<Item = isize> + Clone
+{
     antennas
+        .iter()
+        .copied()
+        .into_grouping_map()
+        .collect::<Vec<_>>()
         .values()
-        .unique()
-        .flat_map(|&frequency| {
-            antennas
+        .flat_map(|positions| {
+            positions
                 .iter()
-                .filter(move |(_, &a)| a == frequency)
-                .map(|(p, _)| *p)
-                .tuple_combinations()
-                .flat_map(|(a, b)| [(a, b), (b, a)])
-                .map(|((ai, aj), (bi, bj))| (
-                    bi + (bi - ai),
-                    bj + (bj - aj),
-                ))
-        })
-        .unique()
-        .filter(|(i, j)| (0..*rows).contains(i) && (0..*cols).contains(j))
-        .count()
-}
-
-#[aoc(day8, part2)]
-fn part2((antennas, (rows, cols)): &Input) -> usize {
-    antennas
-        .values()
-        .unique()
-        .flat_map(|&frequency| {
-            antennas
-                .iter()
-                .filter(move |(_, &a)| a == frequency)
-                .map(|(p, _)| *p)
                 .tuple_combinations()
                 .flat_map(|(a, b)| [(a, b), (b, a)])
                 .flat_map(|((ai, aj), (bi, bj))| {
-                    (0..)
+                    antinode_coefficients
+                        .clone()
+                        .into_iter()
                         .map(move |k| (bi + k * (bi - ai), bj + k * (bj - aj)))
-                        .take_while(|(i, j)| (0..*rows).contains(i) && (0..*cols).contains(j))
+                        .take_while(|(i, j)| (0..rows).contains(i) && (0..cols).contains(j))
                 })
         })
         .unique()
-        .filter(|(i, j)| (0..*rows).contains(i) && (0..*cols).contains(j))
         .count()
+}
+
+#[aoc(day8, part1)]
+fn part1((antennas, dimensions): &Input) -> usize {
+    solve(antennas, *dimensions, 1..2)
+}
+
+#[aoc(day8, part2)]
+fn part2((antennas, dimensions): &Input) -> usize {
+    solve(antennas, *dimensions, 0..)
 }
 
 #[cfg(test)]
