@@ -87,21 +87,26 @@ fn part2(input: &[DiskObject]) -> usize {
     let mut disk = input.to_vec();
     let file_ids = disk
         .iter()
-        .filter_map(|disk_object| {
+        .enumerate()
+        .filter_map(|(i, disk_object)| {
             match *disk_object {
-                DiskObject::File(_, id) => Some(id),
+                DiskObject::File(_, id) => Some((i, id)),
                 DiskObject::Free(_) => None,
             }
         })
         .collect_vec();
 
-    for id in file_ids.iter().rev() {
-        let Some((file_pos, &file)) = disk.iter().find_position(|disk_object| {
-            match *disk_object {
-                DiskObject::File(_, candidate_id) => candidate_id == id,
-                DiskObject::Free(_) => false,
-            }
-        }) else {
+    for &(initial_file_pos, id) in file_ids.iter().rev() {
+        let Some((file_pos, &file)) = disk[initial_file_pos..]
+            .iter()
+            .find_position(|disk_object| {
+                match *disk_object {
+                    DiskObject::File(_, candidate_id) => *candidate_id == id,
+                    DiskObject::Free(_) => false,
+                }
+            })
+            .map(|(file_pos, file)| (file_pos + initial_file_pos, file))
+        else {
             panic!("Unable to find file: {id}");
         };
 
