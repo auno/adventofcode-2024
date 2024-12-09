@@ -19,6 +19,26 @@ impl DiskObject {
     }
 }
 
+fn generate_disk_map(input: &[DiskObject]) -> Vec<Option<usize>> {
+    input
+        .iter()
+        .flat_map(|disk_object| {
+            match *disk_object {
+                DiskObject::File(len, id) => repeat_n(Some(id), len),
+                DiskObject::Free(len) => repeat_n(None, len),
+            }
+        })
+        .collect()
+}
+
+fn calculate_disk_checksum(disk_map: &[Option<usize>]) -> usize {
+    disk_map
+        .iter()
+        .enumerate()
+        .filter_map(|(i, b)| b.map(|f| i * f))
+        .sum()
+}
+
 #[aoc_generator(day9)]
 fn parse(input: &str) -> Result<Vec<DiskObject>> {
     input
@@ -35,18 +55,6 @@ fn parse(input: &str) -> Result<Vec<DiskObject>> {
                 DiskObject::File(len, i / 2)
             } else {
                 DiskObject::Free(len)
-            }
-        })
-        .collect()
-}
-
-fn generate_disk_map(input: &[DiskObject]) -> Vec<Option<usize>> {
-    input
-        .iter()
-        .flat_map(|disk_object| {
-            match *disk_object {
-                DiskObject::File(len, id) => repeat_n(Some(id), len),
-                DiskObject::Free(len) => repeat_n(None, len),
             }
         })
         .collect()
@@ -75,11 +83,7 @@ fn part1(input: &[DiskObject]) -> usize {
         }
     }
 
-    disk_map
-        .iter()
-        .enumerate()
-        .filter_map(|(i, b)| b.map(|f| i * f))
-        .sum()
+    calculate_disk_checksum(&disk_map)
 }
 
 #[aoc(day9, part2)]
@@ -127,11 +131,7 @@ fn part2(input: &[DiskObject]) -> usize {
         }
     }
 
-    generate_disk_map(&disk)
-        .iter()
-        .enumerate()
-        .filter_map(|(i, b)| b.map(|f| i * f))
-        .sum()
+    calculate_disk_checksum(&generate_disk_map(&disk))
 }
 
 #[cfg(test)]
