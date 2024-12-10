@@ -1,4 +1,4 @@
-use std::{collections::HashMap, usize};
+use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
@@ -108,6 +108,20 @@ fn part1(map: &Input) -> usize {
         .sum()
 }
 
+#[aoc(day10, part2)]
+fn part2(map: &Input) -> usize {
+    let trailheads = map
+        .iter()
+        .filter(|(p, h)| **h == 0)
+        .map(|(p, _)| *p)
+        .collect_vec();
+
+    trailheads
+        .iter()
+        .map(|p| count_reachable_summits(map, p).into_iter().count())
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
@@ -145,5 +159,16 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(820, part1(&parse(include_str!("../input/2024/day10.txt")).unwrap()));
+    }
+
+
+    #[test]
+    fn part2_example2() {
+        assert_eq!(81, part2(&parse(EXAMPLE2).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(1786, part2(&parse(include_str!("../input/2024/day10.txt")).unwrap()));
     }
 }
