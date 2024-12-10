@@ -3,55 +3,8 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
 use itertools::Itertools;
-use strum::IntoEnumIterator;
-use strum::EnumIter;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, EnumIter)]
-enum Direction {
-    Up,
-    Right,
-    Down,
-    Left,
-}
-
-impl Direction {
-    fn turn(self) -> Direction {
-        match self {
-            Direction::Up => Direction::Right,
-            Direction::Right => Direction::Down,
-            Direction::Down => Direction::Left,
-            Direction::Left => Direction::Up,
-        }
-    }
-
-    fn opposite(self) -> Direction {
-        match self {
-            Direction::Up => Direction::Down,
-            Direction::Right => Direction::Left,
-            Direction::Down => Direction::Up,
-            Direction::Left => Direction::Right,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-struct Position(isize, isize);
-
-impl Position {
-    fn new(i: usize, j: usize) -> Position {
-        Position(i as isize, j as isize)
-    }
-
-    fn step(self, dir: Direction) -> Position {
-        let Position(i, j) = self;
-        match dir {
-            Direction::Up => Position(i - 1, j),
-            Direction::Down => Position(i + 1, j),
-            Direction::Left => Position(i, j - 1),
-            Direction::Right => Position(i, j + 1),
-        }
-    }
-}
+use crate::utils::grid::{Direction, Position, IntoEnumIterator};
 
 type Input = HashMap<Position, usize>;
 

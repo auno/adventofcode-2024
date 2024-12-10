@@ -4,6 +4,8 @@ use aoc_runner_derive::{aoc, aoc_generator};
 use anyhow::{bail, Context, Error, Result};
 use itertools::{chain, Itertools};
 
+use crate::utils::grid::{Direction, Position};
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum Tile {
     Free,
@@ -18,49 +20,6 @@ impl TryFrom<char> for Tile {
             '.' => Ok(Tile::Free),
             '#' => Ok(Tile::Obstructed),
             _ => bail!("Unknown Tile: {value}"),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-enum Direction {
-    Up,
-    Right,
-    Down,
-    Left,
-}
-
-impl Direction {
-    fn turn(self) -> Direction {
-        match self {
-            Direction::Up => Direction::Right,
-            Direction::Right => Direction::Down,
-            Direction::Down => Direction::Left,
-            Direction::Left => Direction::Up,
-        }
-    }
-
-    fn opposite(self) -> Direction {
-        match self {
-            Direction::Up => Direction::Down,
-            Direction::Right => Direction::Left,
-            Direction::Down => Direction::Up,
-            Direction::Left => Direction::Right,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-struct Position(isize, isize);
-
-impl Position {
-    fn step(self, dir: Direction) -> Position {
-        let Position(i, j) = self;
-        match dir {
-            Direction::Up => Position(i - 1, j),
-            Direction::Down => Position(i + 1, j),
-            Direction::Left => Position(i, j - 1),
-            Direction::Right => Position(i, j + 1),
         }
     }
 }
