@@ -24,12 +24,11 @@ fn parse(input: &str) -> Result<Input> {
         .collect()
 }
 
-fn count_reachable_summits(map: &Input, p: &Position) -> impl IntoIterator<Item = Position> {
-    let current_height = map.get(p).unwrap();
+fn paths_to_summit(map: &Input, p: Position) -> impl IntoIterator<Item = Position> {
+    let current_height = map.get(&p).unwrap();
 
     if *current_height == 9 {
-        // eprintln!("-- {p:?}");
-        return vec![*p];
+        return vec![p];
     }
 
     Direction::iter()
@@ -41,37 +40,32 @@ fn count_reachable_summits(map: &Input, p: &Position) -> impl IntoIterator<Item 
                 return None;
             }
 
-            Some(count_reachable_summits(map, &np))
+            Some(paths_to_summit(map, np))
         })
         .flatten()
         .collect_vec()
 }
 
+fn trailheads(map: &Input) -> impl IntoIterator<Item = &'_ Position> {
+    map
+        .iter()
+        .filter(|(_, h)| **h == 0)
+        .map(|(p, _)| p)
+}
+
 #[aoc(day10, part1)]
 fn part1(map: &Input) -> usize {
-    let trailheads = map
-        .iter()
-        .filter(|(p, h)| **h == 0)
-        .map(|(p, _)| *p)
-        .collect_vec();
-
-    trailheads
-        .iter()
-        .map(|p| count_reachable_summits(map, p).into_iter().unique().count())
+    trailheads(map)
+        .into_iter()
+        .map(|p| paths_to_summit(map, *p).into_iter().unique().count())
         .sum()
 }
 
 #[aoc(day10, part2)]
 fn part2(map: &Input) -> usize {
-    let trailheads = map
-        .iter()
-        .filter(|(p, h)| **h == 0)
-        .map(|(p, _)| *p)
-        .collect_vec();
-
-    trailheads
-        .iter()
-        .map(|p| count_reachable_summits(map, p).into_iter().count())
+    trailheads(map)
+        .into_iter()
+        .map(|p| paths_to_summit(map, *p).into_iter().count())
         .sum()
 }
 
