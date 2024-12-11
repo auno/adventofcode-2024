@@ -31,7 +31,7 @@ fn map_stone(stone: u64) -> [Option<u64>; 2] {
     if digits % 2 == 0 {
         let pow = 10u64.pow(digits / 2);
         let a = stone / pow;
-        let b = stone - (a * pow);
+        let b = stone % pow;
 
         return [Some(a), Some(b)];
     }
