@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
+use cached::proc_macro::cached;
 
 #[aoc_generator(day11)]
 fn parse(input: &str) -> Result<Vec<u64>> {
@@ -38,15 +39,34 @@ fn map_stone(stone: u64) -> [Option<u64>; 2] {
     [Some(stone * 2024), None]
 }
 
-#[aoc(day11, part1)]
-fn part1(stones: &[u64]) -> usize {
-    let mut iter: Box<dyn Iterator<Item = u64>> = Box::new(stones.iter().copied());
-
-    for _i in 0..25 {
-        iter = Box::new(iter.flat_map(map_stone).flatten());
+#[cached]
+fn count_stones(stone: u64, iterations: usize) -> usize {
+    if iterations == 0 {
+        return 1;
     }
 
-    iter.count()
+    map_stone(stone)
+        .into_iter()
+        .flatten()
+        .map(|new_stone| count_stones(new_stone, iterations - 1))
+        .sum()
+}
+
+fn solve(stones: &[u64], iterations: usize) -> usize {
+    stones
+        .iter()
+        .map(|stone| count_stones(*stone, iterations))
+        .sum()
+}
+
+#[aoc(day11, part1)]
+fn part1(stones: &[u64]) -> usize {
+    solve(stones, 25)
+}
+
+#[aoc(day11, part2)]
+fn part2(stones: &[u64]) -> usize {
+    solve(stones, 75)
 }
 
 #[cfg(test)]
@@ -73,5 +93,10 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(204022, part1(&parse(include_str!("../input/2024/day11.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(241651071960597, part2(&parse(include_str!("../input/2024/day11.txt")).unwrap()));
     }
 }
