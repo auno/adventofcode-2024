@@ -1,6 +1,7 @@
+use hashbrown::HashMap;
+
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use cached::proc_macro::cached;
 
 #[aoc_generator(day11)]
 fn parse(input: &str) -> Result<Vec<u64>> {
@@ -10,52 +11,55 @@ fn parse(input: &str) -> Result<Vec<u64>> {
         .collect()
 }
 
-fn num_digits(stone: u64) -> u32 {
-    let mut stone = stone;
+fn num_digits(number: u64) -> usize {
+    let mut number = number;
     let mut digits = 0;
 
-    while stone > 0 {
-        stone /= 10;
+    while number > 0 {
+        number /= 10;
         digits += 1;
     }
 
     digits
 }
 
-fn map_stone(stone: u64) -> [Option<u64>; 2] {
-    if stone == 0 {
-        return [Some(1), None];
-    }
-
-    let digits = num_digits(stone);
-    if digits % 2 == 0 {
-        let pow = 10u64.pow(digits / 2);
-        let a = stone / pow;
-        let b = stone % pow;
-
-        return [Some(a), Some(b)];
-    }
-
-    [Some(stone * 2024), None]
-}
-
-#[cached]
-fn count_stones(stone: u64, iterations: usize) -> usize {
-    if iterations == 0 {
-        return 1;
-    }
-
-    map_stone(stone)
-        .into_iter()
-        .flatten()
-        .map(|new_stone| count_stones(new_stone, iterations - 1))
-        .sum()
-}
-
 fn solve(stones: &[u64], iterations: usize) -> usize {
-    stones
+    let mut stone_counts = stones
         .iter()
-        .map(|stone| count_stones(*stone, iterations))
+        .fold(HashMap::<u64, usize>::new(), |mut acc, stone| {
+            *acc.entry(*stone).or_default() += 1;
+            acc
+        });
+
+    for _ in 0..iterations {
+        let mut new_stone_counts = HashMap::with_capacity(stone_counts.capacity());
+
+        for (stone, count) in stone_counts {
+            if stone == 0 {
+                *new_stone_counts.entry(1).or_default() += count;
+                continue;
+            }
+
+            let digits = num_digits(stone);
+            if digits % 2 == 0 {
+                let pow = 10u64.pow(digits as u32 / 2);
+                let a = stone / pow;
+                let b = stone % pow;
+
+                *new_stone_counts.entry(a).or_default() += count;
+                *new_stone_counts.entry(b).or_default() += count;
+
+                continue;
+            }
+
+            *new_stone_counts.entry(stone * 2024).or_default() += count;
+        }
+
+        stone_counts = new_stone_counts;
+    }
+
+    stone_counts
+        .values()
         .sum()
 }
 
@@ -74,16 +78,6 @@ mod tests {
     use super::*;
 
     const EXAMPLE1: &str = "125 17";
-
-    #[test]
-    fn num_digits_1() {
-        assert_eq!(6, num_digits(253000));
-    }
-
-    #[test]
-    fn map_stone_1() {
-        assert_eq!([Some(253), Some(0)], map_stone(253000));
-    }
 
     #[test]
     fn part1_example1() {

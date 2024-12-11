@@ -11,4 +11,4 @@ regex = "1.11.1"
 anyhow = "1.0.93"
 indoc = "2.0.5"
 strum = { version = "0.26.3", features = ["derive"] }
-cached = "0.54.0"
+hashbrown = "0.15.2"
