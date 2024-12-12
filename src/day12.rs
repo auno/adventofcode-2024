@@ -46,8 +46,36 @@ fn fill(map: &Input, start_position: Position) -> HashSet<Position> {
     region
 }
 
-#[aoc(day12, part1)]
-fn part1(map: &Input) -> usize {
+fn measure_perimiter(region: &HashSet<Position>, bulk: bool) -> usize {
+    let mut perimiter = 0;
+
+    for direction in Direction::iter() {
+        let plots = region
+            .iter()
+            .filter(|p| !region.contains(&p.step(direction)))
+            .map(|&Position(i, j)| match direction {
+                Direction::Up | Direction::Down => (i, j),
+                Direction::Left | Direction::Right => (j, i),
+            })
+            .sorted()
+            .collect_vec();
+
+        perimiter += 1;
+
+        for i in 1..plots.len() {
+            let (ai, aj) = plots[i - 1];
+            let (bi, bj) = plots[i];
+
+            if !bulk || (ai != bi || bj != aj + 1) {
+                perimiter += 1;
+            }
+        }
+    }
+
+    perimiter
+}
+
+fn solve(map: &Input, bulk: bool) -> usize {
     let mut seen = HashSet::new();
     let mut queue = VecDeque::from_iter(map.keys());
     let mut sum = 0;
@@ -58,76 +86,25 @@ fn part1(map: &Input) -> usize {
         }
 
         let region = fill(map, p);
+
         for pos in &region {
             seen.insert(*pos);
         }
-        let area = region.len();
-        let perimiter = region
-            .iter()
-            .map(|pos| {
-                Direction::iter()
-                    .map(|d| pos.step(d))
-                    .filter(|np| !region.contains(np))
-                    .count()
-            })
-            .sum::<usize>();
 
-        sum += area * perimiter;
+        sum += region.len() * measure_perimiter(&region, bulk);
     }
 
     sum
 }
 
+#[aoc(day12, part1)]
+fn part1(map: &Input) -> usize {
+    solve(map, false)
+}
+
 #[aoc(day12, part2)]
 fn part2(map: &Input) -> usize {
-    let mut seen = HashSet::new();
-    let mut queue = VecDeque::from_iter(map.keys());
-    let mut sum = 0;
-
-    while let Some(&p) = queue.pop_front() {
-        if seen.contains(&p) {
-            continue;
-        }
-
-        let region = fill(map, p);
-
-        for pos in &region {
-            seen.insert(*pos);
-        }
-
-        let area = region.len();
-        let mut perimiter = 0;
-
-        for direction in Direction::iter() {
-            let plots = region
-                .iter()
-                .filter(|p| !region.contains(&p.step(direction)))
-                .map(|&Position(i, j)| match direction {
-                    Direction::Up | Direction::Down => (i, j),
-                    Direction::Left | Direction::Right => (j, i),
-                })
-                .sorted()
-                .collect_vec();
-
-            for i in 1..=plots.len() {
-                if i >= plots.len() {
-                    perimiter += 1;
-                    break;
-                }
-
-                let (ai, aj) = plots[i - 1];
-                let (bi, bj) = plots[i];
-
-                if ai != bi || bj != aj + 1 {
-                    perimiter += 1;
-                }
-            }
-        }
-
-        sum += area * perimiter;
-    }
-
-    sum
+    solve(map, true)
 }
 
 #[cfg(test)]
