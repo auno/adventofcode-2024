@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
 use scan_fmt::scan_fmt;
 
-type ClawMachine = ((u32, u32), (u32, u32), (u32, u32));
+type ClawMachine = ((i64, i64), (i64, i64), (i64, i64));
 type Input = Vec<ClawMachine>;
 
 #[aoc_generator(day13)]
@@ -11,45 +11,58 @@ fn parse(input: &str) -> Result<Input> {
         .split("\n\n")
         .map(|machine| {
             let mut lines = machine.lines();
-            let (ax, ay) = scan_fmt!(lines.next().context("Unexpected end of input")?, "Button A: X+{d}, Y+{d}", u32, u32)?;
-            let (bx, by) = scan_fmt!(lines.next().context("Unexpected end of input")?, "Button B: X+{d}, Y+{d}", u32, u32)?;
-            let (px, py) = scan_fmt!(lines.next().context("Unexpected end of input")?, "Prize: X={d}, Y={d}", u32, u32)?;
+            let (ax, ay) = scan_fmt!(lines.next().context("Unexpected end of input")?, "Button A: X+{d}, Y+{d}", i64, i64)?;
+            let (bx, by) = scan_fmt!(lines.next().context("Unexpected end of input")?, "Button B: X+{d}, Y+{d}", i64, i64)?;
+            let (px, py) = scan_fmt!(lines.next().context("Unexpected end of input")?, "Prize: X={d}, Y={d}", i64, i64)?;
 
             Ok(((ax, ay), (bx, by), (px, py)))
         })
         .collect()
 }
 
-fn find_cheapest_prize(machine: &ClawMachine) -> Option<u32> {
-    let ((ax, ay), (bx, by), (px, py)) = *machine;
+fn find_cost(machine: ClawMachine) -> Option<i64> {
+    let ((ax, ay), (bx, by), (px, py)) = machine;
 
-    (0..=100)
-        .filter_map(|a| {
-            let x = px.checked_sub(a * ax)?;
-            let y = py.checked_sub(a * ay)?;
+    let b = (ax * py - ay * px) / (ax * by - ay * bx);
+    let a = (px - bx * b) / ax;
 
-            if x % bx != 0 || y % by != 0 || x / bx != y / by {
-                return None;
-            }
+    if ax * a + bx * b != px || ay * a + by * b != py {
+        return None;
+    }
 
-            let b = x / bx;
+    Some(a * 3 + b)
+}
 
-            Some(a * 3 + b)
-        })
-        .min()
+fn find_costs(machines: impl IntoIterator<Item = ClawMachine>) -> impl IntoIterator<Item = Option<i64>> {
+    machines
+        .into_iter()
+        .map(find_cost)
+}
+
+fn shift_targets(machines: &Input, offset: i64) ->  impl IntoIterator<Item = ClawMachine> + use<'_> {
+    machines
+        .iter()
+        .map(move |&(a, b, (px, py))| (a, b, (px + offset, py + offset)))
+}
+
+fn solve(machines: &Input, multiplier: i64) -> i64 {
+    find_costs(shift_targets(machines, multiplier)).into_iter().flatten().sum()
 }
 
 #[aoc(day13, part1)]
-fn part1(input: &Input) -> u32 {
-    input
-        .iter()
-        .filter_map(find_cheapest_prize)
-        .sum()
+fn part1(input: &Input) -> i64 {
+    solve(input, 0)
+}
+
+#[aoc(day13, part2)]
+fn part2(input: &Input) -> i64 {
+    solve(input, 10000000000000)
 }
 
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
+    use itertools::Itertools;
 
     use super::*;
 
@@ -72,11 +85,6 @@ mod tests {
     "};
 
     #[test]
-    fn find_cheapest_prize1() {
-        assert_eq!(3, find_cheapest_prize(&((8, 12), (2, 3), (8, 12))).unwrap())
-    }
-
-    #[test]
     fn part1_example1() {
         assert_eq!(480, part1(&parse(EXAMPLE1).unwrap()));
     }
@@ -88,5 +96,20 @@ mod tests {
         assert!(34773 < ans);
         assert!(47793 > ans);
         assert_eq!(36954, ans);
+    }
+
+    #[test]
+    fn part2_example1() {
+        let machines = parse(EXAMPLE1).unwrap();
+        let has_solutions = find_costs(shift_targets(&machines, 10000000000000))
+            .into_iter()
+            .map(|solution| solution.is_some())
+            .collect_vec();
+        assert_eq!(vec![false, true, false, true], has_solutions);
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(79352015273424, part2(&parse(include_str!("../input/2024/day13.txt")).unwrap()));
     }
 }
