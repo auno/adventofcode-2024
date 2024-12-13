@@ -23,10 +23,11 @@ fn parse(input: &str) -> Result<Input> {
 fn find_cost(machine: ClawMachine) -> Option<i64> {
     let ((ax, ay), (bx, by), (px, py)) = machine;
 
-    let b = (ax * py - ay * px) / (ax * by - ay * bx);
-    let a = (px - bx * b) / ax;
+    let det = ax * by - ay * bx;
+    let a = (by * px - bx * py) / det;
+    let b = (ax * py - ay * px) / det;
 
-    if ax * a + bx * b != px || ay * a + by * b != py {
+    if (ax * a + bx * b, ay * a + by * b) != (px, py) {
         return None;
     }
 
@@ -39,7 +40,7 @@ fn find_costs(machines: impl IntoIterator<Item = ClawMachine>) -> impl IntoItera
         .map(find_cost)
 }
 
-fn shift_targets(machines: &Input, offset: i64) ->  impl IntoIterator<Item = ClawMachine> + use<'_> {
+fn shift_targets(machines: &Input, offset: i64) -> impl IntoIterator<Item = ClawMachine> + use<'_> {
     machines
         .iter()
         .map(move |&(a, b, (px, py))| (a, b, (px + offset, py + offset)))
