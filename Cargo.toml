@@ -12,3 +12,4 @@ anyhow = "1.0.93"
 indoc = "2.0.5"
 strum = { version = "0.26.3", features = ["derive"] }
 hashbrown = "0.15.2"
+scan_fmt = "0.2.6"
