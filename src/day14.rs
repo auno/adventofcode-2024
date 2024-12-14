@@ -29,9 +29,9 @@ fn part1_with_dimensions(input: &Input, (height, width): (isize, isize)) -> Opti
     simulate(input, (height, width), 100)
         .filter(|(i, j)| i % (height / 2 + 1) != height / 2 && j % (width / 2 + 1) != width / 2)
         .map(|(i, j)| (i / (height / 2 + 1), (j / (width / 2 + 1))))
-        .counts()
-        .values()
-        .copied()
+        .sorted()
+        .dedup_with_count()
+        .map(|(c, _)| c)
         .reduce(|a, b| a * b)
 }
 
@@ -40,26 +40,25 @@ fn part1(input: &Input) -> Option<usize> {
     part1_with_dimensions(input, (103, 101))
 }
 
-fn part2_with_dimensions(input: &Input, dimensions: (isize, isize)) -> Option<usize> {
+#[aoc(day14, part2)]
+fn part2(input: &Input) -> Option<usize> {
+    let (height, width) = (103, 101);
     let avg = input.len() / 100;
     let threshold = avg * 10;
 
     for iterations in 0.. {
-        let cluster_counts = simulate(input, dimensions, iterations)
-            .map(|(i, j)| (i / 10, j / 10))
-            .counts();
+        let mut cluster_counts = vec![0; (((height - 1) / 10 + 1) * ((width - 1) / 10 + 1)) as usize];
 
-        if cluster_counts.values().any(|cluster_count| *cluster_count > threshold) {
+        for (i, j) in simulate(input, (height, width), iterations).map(|(i, j)| (i / 10, j / 10)) {
+            cluster_counts[i as usize * 10 + j as usize] += 1;
+        }
+
+        if cluster_counts.into_iter().any(|cluster_count| cluster_count > threshold) {
             return Some(iterations as usize);
         }
     }
 
     None
-}
-
-#[aoc(day14, part2)]
-fn part2(input: &Input) -> Option<usize> {
-    part2_with_dimensions(input, (103, 101))
 }
 
 #[cfg(test)]
@@ -94,7 +93,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn part2_input() {
         assert_eq!(Some(8179), part2(&parse(include_str!("../input/2024/day14.txt")).unwrap()));
     }
