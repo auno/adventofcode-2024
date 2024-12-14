@@ -1,9 +1,12 @@
+use std::cmp::max;
+
 use anyhow::Result;
 use aoc_runner_derive::{aoc, aoc_generator};
 use itertools::Itertools;
 use scan_fmt::scan_fmt;
 
 type Input = Vec<((isize, isize), (isize, isize))>;
+type NormalizedInput = Vec<((usize, usize), (usize, usize))>;
 
 #[aoc_generator(day14)]
 fn parse(input: &str) -> Result<Input> {
@@ -16,17 +19,29 @@ fn parse(input: &str) -> Result<Input> {
         .collect()
 }
 
-fn simulate(input: &Input, (height, width): (isize, isize), iterations: isize) -> impl Iterator<Item = (isize, isize)> + use<'_> {
+fn normalize(input: &Input, (height, width): (usize, usize)) -> NormalizedInput {
+    input
+        .iter()
+        .map(|((i, j), (vi, vj))| (
+            (i.rem_euclid(height as isize) as usize, j.rem_euclid(width as isize) as usize),
+            (vi.rem_euclid(height as isize) as usize, vj.rem_euclid(width as isize) as usize),
+        ))
+        .collect_vec()
+}
+
+fn simulate(input: &NormalizedInput, (height, width): (usize, usize), iterations: usize) -> impl Iterator<Item = (usize, usize)> + use<'_> {
     input
         .iter()
         .map(move |((i, j), (vi, vj))| (
-            (i + vi * iterations).rem_euclid(height),
-            (j + vj * iterations).rem_euclid(width),
+            (i + vi * iterations) % height,
+            (j + vj * iterations) % width,
         ))
 }
 
-fn part1_with_dimensions(input: &Input, (height, width): (isize, isize)) -> Option<usize> {
-    simulate(input, (height, width), 100)
+fn part1_with_dimensions(input: &Input, (height, width): (usize, usize)) -> Option<usize> {
+    let input = normalize(input, (height, width));
+
+    simulate(&input, (height, width), 100)
         .filter(|(i, j)| i % (height / 2 + 1) != height / 2 && j % (width / 2 + 1) != width / 2)
         .map(|(i, j)| (i / (height / 2 + 1), (j / (width / 2 + 1))))
         .sorted()
@@ -40,25 +55,27 @@ fn part1(input: &Input) -> Option<usize> {
     part1_with_dimensions(input, (103, 101))
 }
 
+fn variance(values: &[usize]) -> usize {
+    let mean = values.iter().sum::<usize>() / values.len();
+    values.iter().map(|value| value.abs_diff(mean).pow(2)).sum::<usize>() / values.len()
+}
+
 #[aoc(day14, part2)]
 fn part2(input: &Input) -> Option<usize> {
     let (height, width) = (103, 101);
-    let avg = input.len() / 100;
-    let threshold = avg * 10;
+    let input = normalize(input, (height, width));
 
-    for iterations in 0.. {
-        let mut cluster_counts = vec![0; (((height - 1) / 10 + 1) * ((width - 1) / 10 + 1)) as usize];
+    let (variances_i, variances_j): (Vec<_>, Vec<_>) = (0..max(height, width))
+        .map(|iterations| {
+            let (is, js): (Vec<_>, Vec<_>) = simulate(&input, (height, width), iterations).unzip();
+            ((iterations, variance(&is)), (iterations, variance(&js)))
+        })
+        .unzip();
+    let (offset_i, _) = *variances_i.iter().min_by_key(|(_, v)| v).unwrap();
+    let (offset_j, _) = *variances_j.iter().min_by_key(|(_, v)| v).unwrap();
 
-        for (i, j) in simulate(input, (height, width), iterations).map(|(i, j)| (i / 10, j / 10)) {
-            cluster_counts[i as usize * 10 + j as usize] += 1;
-        }
-
-        if cluster_counts.into_iter().any(|cluster_count| cluster_count > threshold) {
-            return Some(iterations as usize);
-        }
-    }
-
-    None
+    (0..(height * width))
+        .find(|&iterations| iterations.abs_diff(offset_i) % height == 0 && iterations.abs_diff(offset_j) % width == 0)
 }
 
 #[cfg(test)]
