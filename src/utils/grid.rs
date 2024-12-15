@@ -71,9 +71,7 @@ impl Position {
 }
 
 #[derive(Clone)]
-pub struct Grid<T> where
-    T: Copy + Clone,
-{
+pub struct Grid<T> where T: Clone {
     store: Vec<T>,
     rows: GridSize,
     cols: GridSize,
@@ -113,7 +111,7 @@ impl<T> Grid<T> where T: Default + Copy + Clone {
     }
 }
 
-impl<T> Grid<T> where T: Copy + Clone {
+impl<T> Grid<T> where T: Clone {
     pub fn new_with_value<S>(rows: S, cols: S, value: T) -> Grid<T> where S: Into<GridSize> + PartialOrd<isize> + Display {
         if rows < 0 || cols < 0 {
             panic!("Dimensions not non-negative: ({rows}, {cols})");
@@ -153,8 +151,8 @@ impl<T> Grid<T> where T: Copy + Clone {
     }
 
     pub fn dimensions<S>(&self) -> (S, S) where S: From<GridSize>, {
-        (self.rows(), self.cols())
-    }
+            (self.rows(), self.cols())
+        }
 
     pub fn rows<S>(&self) -> S where S: From<GridSize> {
         S::from(self.rows)
@@ -189,10 +187,7 @@ impl<T> Grid<T> where T: Copy + Clone {
     }
 }
 
-impl<T, S> Index<(S, S)> for Grid<T> where
-    T: Copy + Clone,
-    S: Into<GridSize>,
-{
+impl<T, S> Index<(S, S)> for Grid<T> where T: Clone, S: Into<GridSize> {
     type Output = T;
 
     fn index(&self, (i, j): (S, S)) -> &Self::Output {
@@ -203,10 +198,7 @@ impl<T, S> Index<(S, S)> for Grid<T> where
     }
 }
 
-impl<T, S> IndexMut<(S, S)> for Grid<T> where
-    T: Copy + Clone,
-    S: Into<GridSize>,
-{
+impl<T, S> IndexMut<(S, S)> for Grid<T> where T: Clone, S: Into<GridSize> {
     fn index_mut(&mut self, (i, j): (S, S)) -> &mut Self::Output {
         let i: usize = i.into().into();
         let j: usize = j.into().into();
@@ -242,6 +234,39 @@ impl<T> IntoIterator for Grid<T> where T: Copy{
 
     fn into_iter(self) -> Self::IntoIter {
         GridIntoIter {
+            grid: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct GridRefIntoIter<'a, T> where T: Clone {
+    grid: &'a Grid<T>,
+    index: usize,
+}
+
+impl<'a, T> Iterator for GridRefIntoIter<'a, T> where T: Clone {
+    type Item = (Position, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.grid.len() {
+            return None;
+        }
+
+        let index = self.index as isize;
+        self.index += 1;
+        let i = index / self.grid.cols::<isize>();
+        let j = index % self.grid.cols::<isize>();
+        Some((Position(i, j), &self.grid[(i, j)]))
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Grid<T> where T: Clone {
+    type Item = (Position, &'a T);
+    type IntoIter = GridRefIntoIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        GridRefIntoIter {
             grid: self,
             index: 0,
         }

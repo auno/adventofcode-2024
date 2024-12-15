@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Error, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
+use itertools::{chain, Itertools};
 
 use crate::utils::grid::{Direction, Grid, Position};
 
@@ -93,6 +94,97 @@ fn part1((grid, start_position, movements): &Input) -> usize {
         .sum()
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+enum Tile2 {
+    #[default]
+    Free,
+    Wall,
+    BoxLeft,
+    BoxRight,
+}
+
+fn find_pushable_boxes(grid: &Grid<Tile2>, position: Position, direction: Direction) -> Option<Vec<Position>> {
+    let positions = match (direction, grid.get(&position)) {
+        (Direction::Up | Direction::Down, Some(Tile2::BoxLeft)) => vec![position, position.step(Direction::Right)],
+        (Direction::Up | Direction::Down, Some(Tile2::BoxRight)) => vec![position.step(Direction::Left), position],
+        (Direction::Left | Direction::Right, Some(Tile2::BoxLeft | Tile2::BoxRight)) => vec![position],
+        (_, t @ (Some(Tile2::Free | Tile2::Wall) | None)) => panic!("Position must point to a BoxLeft or BoxRight: {t:?}"),
+    };
+
+    let candidate_positions = positions.iter().map(|p| p.step(direction)).collect_vec();
+    let candidate_tiles = candidate_positions
+        .iter()
+        .map(|p| grid.get(p))
+        .collect::<Option<Vec<_>>>()?;
+
+    match candidate_tiles[..] {
+        [Tile2::Wall] => None,
+        [Tile2::Wall, _] => None,
+        [_, Tile2::Wall] => None,
+        [Tile2::Free] => Some(positions),
+        [Tile2::Free, Tile2::Free] => Some(positions),
+        [Tile2::BoxLeft | Tile2::BoxRight] => Some(chain!(positions, find_pushable_boxes(grid, candidate_positions[0], direction)?).collect_vec()),
+        [Tile2::BoxRight, Tile2::Free] => Some(chain!(positions, find_pushable_boxes(grid, candidate_positions[0], direction)?).collect_vec()),
+        [Tile2::Free, Tile2::BoxLeft] => Some(chain!(positions, find_pushable_boxes(grid, candidate_positions[1], direction)?).collect_vec()),
+        [Tile2::BoxLeft, Tile2::BoxRight] => Some(chain!(positions, find_pushable_boxes(grid, candidate_positions[0], direction)?).collect_vec()),
+        [Tile2::BoxRight, Tile2::BoxLeft] => Some(chain!(
+            positions,
+            find_pushable_boxes(grid, candidate_positions[0], direction)?,
+            find_pushable_boxes(grid, candidate_positions[1], direction)?,
+        ).collect_vec()),
+        _ => unreachable!("Unexpected candidates: {candidate_tiles:?}"),
+    }
+}
+
+#[aoc(day15, part2)]
+fn part2((original_grid, start_position, movements): &Input) -> usize {
+    let mut grid = Grid::<Tile2>::new(original_grid.rows(), original_grid.cols::<isize>() * 2);
+    let mut position = Position(start_position.0, start_position.1 * 2);
+
+    for (Position(i, j), ot) in original_grid {
+        let (t1, t2) = match ot {
+            Tile::Free => (Tile2::Free, Tile2::Free),
+            Tile::Box => (Tile2::BoxLeft, Tile2::BoxRight),
+            Tile::Wall => (Tile2::Wall, Tile2::Wall),
+        };
+
+        grid.set(&Position(i, j * 2), t1);
+        grid.set(&Position(i, j * 2 + 1), t2);
+    }
+
+    for &direction in movements {
+        let candidate_position = position.step(direction);
+        match grid.get(&candidate_position) {
+            Some(Tile2::Free) => { position = candidate_position; },
+            Some(Tile2::Wall) | None => {},
+            Some(Tile2::BoxLeft | Tile2::BoxRight) => {
+                if let Some(positions) = find_pushable_boxes(&grid, candidate_position, direction) {
+                    let boxes = positions
+                        .iter()
+                        .unique()
+                        .map(|p| (*p, *grid.get(p).unwrap()))
+                        .collect_vec();
+
+                    for (p, _) in &boxes {
+                        grid.set(p, Tile2::Free);
+                    }
+
+                    for &(p, t) in &boxes {
+                        grid.set(&p.step(direction), t);
+                    }
+
+                    position = candidate_position;
+                }
+            }
+        }
+    }
+
+    grid.into_iter()
+        .filter(|(_, t)| *t == Tile2::BoxLeft)
+        .map(|(Position(i, j), _)| i as usize * 100 + j as usize)
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
@@ -136,6 +228,18 @@ mod tests {
         <^^>>>vv<v>>v<<
     "};
 
+    const EXAMPLE3: &str = indoc! {"
+        #######
+        #...#.#
+        #.....#
+        #..OO@#
+        #..O..#
+        #.....#
+        #######
+
+        <vv<<^^<<^^
+    "};
+
     #[test]
     fn part1_example1() {
         assert_eq!(10092, part1(&parse(EXAMPLE1).unwrap()));
@@ -149,5 +253,20 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(1415498, part1(&parse(include_str!("../input/2024/day15.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(9021, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    fn part2_example3() {
+        assert_eq!(105 + 207 + 306, part2(&parse(EXAMPLE3).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(1432898, part2(&parse(include_str!("../input/2024/day15.txt")).unwrap()));
     }
 }
