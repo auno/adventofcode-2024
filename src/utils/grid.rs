@@ -10,7 +10,7 @@ use itertools::Itertools;
 use strum::EnumIter;
 pub use strum::IntoEnumIterator;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, EnumIter)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, EnumIter)]
 pub enum Direction {
     Up,
     Right,
@@ -52,7 +52,7 @@ impl Direction {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct Position(pub isize, pub isize);
 
 impl Position {
