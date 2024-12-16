@@ -1,11 +1,12 @@
-use std::{cmp::{Ordering, Reverse}, collections::{BinaryHeap, VecDeque}, iter::repeat};
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, VecDeque};
 
 use anyhow::{bail, Error, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 
-use crate::utils::grid::{Direction, Grid, Position, IntoEnumIterator};
+use crate::utils::grid::{Direction, Grid, Position};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tile {
@@ -40,7 +41,11 @@ fn parse(input: &str) -> Result<Input> {
     Ok((grid, start, goal))
 }
 
-fn neighbors(grid: &Grid<Tile>, position: Position, direction: Direction) -> impl IntoIterator<Item = ((Position, Direction), usize)> {
+type SearchNode = (Position, Direction);
+type Distances = HashMap<SearchNode, (usize, Vec<SearchNode>)>;
+type PathMap = HashMap<SearchNode, Vec<SearchNode>>;
+
+fn neighbors(grid: &Grid<Tile>, (position, direction): SearchNode) -> impl IntoIterator<Item = (SearchNode, usize)> {
     [(direction, 1), (direction.turn(), 1001), (direction.turn().turn(), 2001), (direction.turn().turn().turn(), 1001)]
         .into_iter()
         .map(|(direction, cost)| ((position.step(direction), direction), cost))
@@ -48,59 +53,39 @@ fn neighbors(grid: &Grid<Tile>, position: Position, direction: Direction) -> imp
         .collect::<Vec<_>>()
 }
 
-fn resolve_paths(
-    distances: &HashMap<(Position, Direction), (usize, Vec<(Position, Direction)>)>,
-    targets: &[(Position, Direction)],
-    source: (Position, Direction),
-) -> Vec<VecDeque<(Position, Direction)>> {
-    let target_previous_positions = targets
-        .iter()
-        .map(|target| {
-            if *target == source {
-                (*target, vec![])
-            } else {
-                (
-                    *target,
-                    distances
-                        .get(target)
-                        .map(|(_, prev)| prev)
-                        .unwrap_or_else(|| panic!("Unable to find previous step: {target:?}"))
-                        .clone()
-                )
-            }
-        })
-        .collect_vec();
+fn resolve_path_map(distances: &Distances, targets: &[SearchNode]) -> PathMap {
+    let mut queue = VecDeque::from_iter(targets.iter().copied());
+    let mut seen = HashSet::new();
+    let mut path_map = HashMap::from_iter(targets.iter().map(|target| (*target, vec![])));
 
-    target_previous_positions
-        .into_iter()
-        .map(|(target, previous_positions)| {
-            (target, resolve_paths(distances, &previous_positions, source))
-        })
-        .flat_map(|(target, previous_paths)| {
-            if previous_paths.is_empty() {
-                return vec![VecDeque::from([target])];
-            }
+    while let Some(current) = queue.pop_front() {
+        if !seen.insert(current) {
+            continue;
+        }
 
-            previous_paths
-                .into_iter()
-                .update(move |path| {
-                    path.push_front(target);
-                })
-                .collect_vec()
-        })
-        .collect_vec()
+        for &previous in distances
+            .get(&current)
+            .map(|(_, previous)| previous)
+            .unwrap_or(&vec![])
+        {
+            path_map.entry(previous).or_default().push(current);
+            queue.push_back(previous);
+        }
+    }
+
+    path_map
 }
 
-fn distance(grid: &Grid<Tile>, source: (Position, Direction), target: Position) -> Option<(usize, Vec<VecDeque<(Position, Direction)>>)> {
-    let mut distances: HashMap<(Position, Direction), (usize, Vec<(Position, Direction)>)> = HashMap::from([(source, (0, vec![]))]);
-    let mut queue: BinaryHeap<(Reverse<usize>, (Position, Direction))> = BinaryHeap::from([(Reverse(0), source)]);
+fn distance(grid: &Grid<Tile>, source: SearchNode, is_target: impl Fn(SearchNode) -> bool) -> Option<(usize, PathMap)> {
+    let mut distances = HashMap::from([(source, (0, vec![]))]);
+    let mut queue = BinaryHeap::from([(Reverse(0), source)]);
 
-    while let Some((Reverse(distance), (position, direction))) = queue.pop() {
-        if position == target {
+    while let Some((Reverse(distance), current)) = queue.pop() {
+        if is_target(current) {
             break;
         }
 
-        for (neighbor, cost) in neighbors(grid, position, direction) {
+        for (neighbor, cost) in neighbors(grid, current) {
             let (neighbor_distance, neighbor_source) = distances
                 .entry(neighbor)
                 .or_insert((usize::MAX, vec![]));
@@ -108,47 +93,51 @@ fn distance(grid: &Grid<Tile>, source: (Position, Direction), target: Position) 
             match (distance + cost).cmp(neighbor_distance) {
                 Ordering::Less => {
                     *neighbor_distance = distance + cost;
-                    *neighbor_source = vec![(position, direction)];
+                    *neighbor_source = vec![current];
                     queue.push((Reverse(*neighbor_distance), neighbor));
                 }
                 Ordering::Equal => {
-                    neighbor_source.push((position, direction));
+                    neighbor_source.push(current);
                 }
                 Ordering::Greater => {},
             }
         }
     }
 
-    let min_distance = Direction::iter()
-        .filter_map(|direction| distances.get(&(target, direction)))
-        .map(|(distance, _)| *distance)
-        .min()?;
-
-    let targets = repeat(target)
-        .zip(Direction::iter())
-        .filter(|target| distances.get(target).map(|(distance, _)| *distance) == Some(min_distance))
+    let potential_targets = distances
+        .iter()
+        .filter(|(node, _)| is_target(**node))
         .collect_vec();
 
-    Some((min_distance, resolve_paths(&distances, &targets, source)))
+    let min_distance = potential_targets
+        .iter()
+        .map(|(_, (distance, _))| *distance)
+        .min()?;
+
+    let targets = potential_targets
+        .iter()
+        .filter(|(_, (distance, _))| *distance == min_distance)
+        .map(|(node, _)| **node)
+        .collect_vec();
+
+    Some((min_distance, resolve_path_map(&distances, &targets)))
 }
 
 #[aoc(day16, part1)]
 fn part1((grid, start, goal): &Input) -> Option<usize> {
-    let (distance, _) = distance(grid, (*start, Direction::Right), *goal)?;
+    let (distance, _) = distance(grid, (*start, Direction::Right), |(position, _): SearchNode| position == *goal)?;
     Some(distance)
 }
 
 #[aoc(day16, part2)]
 fn part2((grid, start, goal): &Input) -> Option<usize> {
-    let (_, paths) = distance(grid, (*start, Direction::Right), *goal)?;
-    let num_positions = paths
-            .into_iter()
-            .flat_map(|paths| paths.into_iter())
-            .map(|(position, _)| {
-                position
-            })
-            .unique()
-            .count();
+    let (_, path_map) = distance(grid, (*start, Direction::Right), |(position, _): SearchNode| position == *goal)?;
+
+    let num_positions = path_map
+        .into_iter()
+        .map(|((position, _), _)| position)
+        .unique()
+        .count();
 
     Some(num_positions)
 }
