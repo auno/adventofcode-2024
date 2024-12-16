@@ -40,12 +40,16 @@ type Input = (Grid<Tile>, Position, Vec<Direction>);
 fn parse(input: &str) -> Result<Input> {
     let (grid, movements) = input.split_once("\n\n").context("Unable to parse input")?;
 
-    let (grid, start_position) = Grid::parse_with_start_position(grid, '@', Tile::Free)?;
+
+    let (grid, positions) = Grid::parse_with_position_detection(grid, &['@'], Tile::Free)?;
     let movements = movements
         .lines()
         .flat_map(|line| line.chars())
         .map(Direction::try_from)
         .collect::<Result<_>>();
+    let Some(&[start_position]) = positions.get(&'@').map(Vec::as_slice) else {
+        bail!("Could not parse start position: {positions:?}");
+    };
 
     Ok((grid, start_position, movements?))
 }

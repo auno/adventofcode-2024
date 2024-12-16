@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(private_bounds)]
 
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::ops::{Index, IndexMut};
 
@@ -277,7 +278,7 @@ impl<T> Grid<T> where
     T: Copy + Clone + TryFrom<char>,
     Result<T, <T as TryFrom<char>>::Error>: Context<T, <T as TryFrom<char>>::Error>,
 {
-    pub fn parse_with_start_position(input: &str, marker: char, replacement: T) -> Result<(Grid<T>, Position)> {
+    pub fn parse_with_position_detection(input: &str, markers: &[char], replacement: T) -> Result<(Grid<T>, HashMap<char, Vec<Position>>)> {
         use anyhow::Ok;
 
         let rows = input.lines().count();
@@ -290,8 +291,8 @@ impl<T> Grid<T> where
                 .chars()
                 .enumerate()
                 .map(move |(j, c)| {
-                    if c == marker {
-                        Ok((replacement, Some(Position(i as isize, j as isize))))
+                    if markers.contains(&c) {
+                        Ok((replacement, Some((c, Position(i as isize, j as isize)))))
                     } else {
                         Ok((T::try_from(c).context(format!("Unable to parse character: {c}"))?, None))
                     }
@@ -299,8 +300,8 @@ impl<T> Grid<T> where
             )
             .process_results(|iter| iter.unzip::<_, _, Vec<_>, Vec<_>>())?;
 
-        let start_position = ps.into_iter().flatten().next().context("Start position not found")?;
+        let positions = ps.into_iter().flatten().into_group_map();
 
-        Ok((Grid::from(rows, cols, ts), start_position))
+        Ok((Grid::from(rows, cols, ts), positions))
     }
 }
