@@ -176,32 +176,33 @@ fn part1(input: &Input) -> Result<String> {
 #[aoc(day17, part2)]
 fn part2(input: &Input) -> Result<usize> {
     let (registers, program) = input;
-    let mut candidate_suffixes = (0..(1 << 12)).collect_vec();
+    let mut prefixes = vec![0];
 
-    for i in 4.. {
-        let mut candidates = vec![];
+    for i in 0..program.len() {
+        let mut next_prefixes = vec![];
 
-        for candidate_prefix in 0..(1 << 4) {
-            for candidate_suffix in &candidate_suffixes {
-                let mut registers = *registers;
-                let candidate = (candidate_prefix << (i * 3)) + candidate_suffix;
-                registers[Register::A] = candidate;
+        for prefix in prefixes {
+            for candidate_suffix in 0..(1 << 3) {
+                if i == 0 && candidate_suffix == 0 { continue; }
+
+                let candidate = (prefix << 3) + candidate_suffix;
+                let registers = [candidate, registers[Register::B], registers[Register::C]];
                 let (output, _) = run_program(program, registers)?;
 
-                if &output == program {
-                    return Ok(candidate);
-                }
-
-                if output.len() >= (i - 1) && output[0..(i - 1)] == program[0..(i - 1)] {
-                    candidates.push(candidate);
+                if output[..] == program[(program.len() - (i + 1))..] {
+                    next_prefixes.push(candidate);
                 }
             }
         }
 
-        candidate_suffixes = candidates.into_iter().unique().collect_vec();
+        prefixes = next_prefixes;
     }
 
-    bail!("No solution found")
+    if prefixes.is_empty() {
+        bail!("No solution found");
+    }
+
+    Ok(prefixes[0])
 }
 
 #[cfg(test)]
