@@ -46,11 +46,11 @@ fn parse(input: &str) -> Result<Input> {
     parse_with_dimensions(input, 71, 71)
 }
 
-type SearchNode = (Position, usize);
+type SearchNode = Position;
 type Distances = HashMap<SearchNode, (usize, Vec<SearchNode>)>;
 type PathMap = HashMap<SearchNode, Vec<SearchNode>>;
 
-fn neighbors(grid: &Grid<MemoryCell>, (position, time): SearchNode) -> Vec<(SearchNode, usize)> {
+fn neighbors(grid: &Grid<MemoryCell>, position: SearchNode, time: usize) -> Vec<(SearchNode, usize)> {
     Direction::iter()
         .map(|direction| position.step(direction))
         .filter(|position| match grid.get(position) {
@@ -58,7 +58,7 @@ fn neighbors(grid: &Grid<MemoryCell>, (position, time): SearchNode) -> Vec<(Sear
             Some(MemoryCell::Corrupted(t)) => *t >= time,
             None => false,
         })
-        .map(|position| ((position, time + 1), 1))
+        .map(|position| (position, 1))
         .collect_vec()
 }
 
@@ -138,13 +138,13 @@ fn distance(
 }
 
 fn distance_at_time(grid: &Grid<MemoryCell>, time: usize) -> Option<usize> {
-    let source = (Position(0, 0), 0);
+    let source = Position(0, 0);
     let target = Position(grid.rows::<isize>() - 1, grid.cols::<isize>() - 1);
     let (distance, _) = distance(
         grid,
         source,
-        |grid, (position, _)| neighbors(grid, (position, time)),
-        |(p, _)| p == target,
+        |grid, position| neighbors(grid, position, time),
+        |position| position == target,
     )?;
 
     Some(distance)
@@ -161,14 +161,28 @@ fn part1(input: &Input) -> Option<usize> {
 
 #[aoc(day18, part2)]
 fn part2((grid, corrupted_positions): &Input) -> Option<String> {
-    for time in 1..corrupted_positions.len() {
-        if distance_at_time(grid, time).is_none() {
-            let Position(i, j) = corrupted_positions[time - 1];
-            return Some(format!("{j},{i}"));
-        }
-    }
+    let mut a = 1;
+    let mut b = corrupted_positions.len() - 1;
 
-    None
+    let time = loop {
+        if a > b { break None }
+
+        let time = (a + b) / 2;
+
+        match (distance_at_time(grid, time - 1), distance_at_time(grid, time)) {
+            (Some(_), Some(_)) => {
+                a = time + 1;
+            },
+            (None, None) => {
+                b = time - 1;
+            },
+            (Some(_), None) => { break Some(time) },
+            (None, Some(_)) => unreachable!(),
+        }
+    };
+
+    let Position(i, j) = corrupted_positions[time? - 1];
+    Some(format!("{j},{i}"))
 }
 
 #[cfg(test)]
