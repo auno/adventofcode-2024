@@ -290,11 +290,13 @@ impl<'a, T> IntoIterator for &'a Grid<T> where T: Clone {
     }
 }
 
+type MarkerPositions = HashMap<char, Vec<Position>>;
+
 impl<T> Grid<T> where
     T: Copy + Clone + TryFrom<char>,
     Result<T, <T as TryFrom<char>>::Error>: Context<T, <T as TryFrom<char>>::Error>,
 {
-    pub fn parse_with_position_detection(input: &str, markers: &[char], replacement: T) -> Result<(Grid<T>, HashMap<char, Vec<Position>>)> {
+    pub fn parse_with_position_detection(input: &str, markers: &[char], replacement: T) -> Result<(Grid<T>, MarkerPositions)> {
         use anyhow::Ok;
 
         let rows = input.lines().count();

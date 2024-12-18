@@ -1,4 +1,5 @@
-use std::{cmp::{Ordering, Reverse}, collections::{BinaryHeap, VecDeque}, usize};
+use std::cmp::{Ordering, Reverse};
+use std::collections::{BinaryHeap, VecDeque};
 
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
@@ -8,33 +9,36 @@ use itertools::Itertools;
 use crate::utils::grid::{Direction, Grid, Position, IntoEnumIterator};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-enum MemoryLocation {
+enum MemoryCell {
     #[default]
     Uncorrupted,
     Corrupted(usize),
 }
 
-type Input = Grid<MemoryLocation>;
+type Input = (Grid<MemoryCell>, Vec<Position>);
 
 fn parse_with_dimensions(input: &str, height: usize, width: usize) -> Result<Input> {
-    let corruptions = input
+    let positions = input
         .lines()
-        .enumerate()
-        .map(|(time, line)| {
+        .map(|line| {
             let (j, i) = line.split_once(',').context(format!("Unable to parse line: {line}"))?;
-            let i = i.parse()?;
-            let j = j.parse()?;
-            Ok((Position::new(i, j), MemoryLocation::Corrupted(time)))
+            Ok(Position(i.parse()?, j.parse()?))
         })
+        .collect::<Result<Vec<_>>>()?;
+
+    let corruptions = positions
+        .iter()
+        .enumerate()
+        .map(|(time, position)| Ok((position, MemoryCell::Corrupted(time))))
         .collect::<Result<Vec<_>>>()?;
 
     let mut grid = Grid::new(height, width);
 
     for (position, memory_location) in corruptions {
-        grid.set(&position, memory_location);
+        grid.set(position, memory_location);
     }
 
-    Ok(grid)
+    Ok((grid, positions))
 }
 
 #[aoc_generator(day18)]
@@ -46,12 +50,12 @@ type SearchNode = (Position, usize);
 type Distances = HashMap<SearchNode, (usize, Vec<SearchNode>)>;
 type PathMap = HashMap<SearchNode, Vec<SearchNode>>;
 
-fn neighbors(grid: &Grid<MemoryLocation>, (position, time): SearchNode) -> Vec<(SearchNode, usize)> {
+fn neighbors(grid: &Grid<MemoryCell>, (position, time): SearchNode) -> Vec<(SearchNode, usize)> {
     Direction::iter()
         .map(|direction| position.step(direction))
         .filter(|position| match grid.get(position) {
-            Some(MemoryLocation::Uncorrupted) => true,
-            Some(MemoryLocation::Corrupted(t)) => *t >= time,
+            Some(MemoryCell::Uncorrupted) => true,
+            Some(MemoryCell::Corrupted(t)) => *t >= time,
             None => false,
         })
         .map(|position| ((position, time + 1), 1))
@@ -82,10 +86,9 @@ fn resolve_path_map(distances: &Distances, targets: &[SearchNode]) -> PathMap {
 }
 
 fn distance(
-    grid: &Grid<MemoryLocation>,
+    grid: &Grid<MemoryCell>,
     source: SearchNode,
-    // neighbors: NeighborsFn,
-    neighbors: impl Fn(&Grid<MemoryLocation>, SearchNode) -> Vec<(SearchNode, usize)>,
+    neighbors: impl Fn(&Grid<MemoryCell>, SearchNode) -> Vec<(SearchNode, usize)>,
     is_target: impl Fn(SearchNode) -> bool
 ) -> Option<(usize, PathMap)> {
     let mut distances = HashMap::from([(source, (0, vec![]))]);
@@ -134,7 +137,7 @@ fn distance(
     Some((min_distance, resolve_path_map(&distances, &targets)))
 }
 
-fn part1_with_time(grid: &Input, time: usize) -> Option<usize> {
+fn distance_at_time(grid: &Grid<MemoryCell>, time: usize) -> Option<usize> {
     let source = (Position(0, 0), 0);
     let target = Position(grid.rows::<isize>() - 1, grid.cols::<isize>() - 1);
     let (distance, _) = distance(
@@ -147,9 +150,25 @@ fn part1_with_time(grid: &Input, time: usize) -> Option<usize> {
     Some(distance)
 }
 
+fn part1_with_time((grid, _): &Input, time: usize) -> Option<usize> {
+    distance_at_time(grid, time)
+}
+
 #[aoc(day18, part1)]
-fn part1(grid: &Input) -> Option<usize> {
-    part1_with_time(grid, 1024)
+fn part1(input: &Input) -> Option<usize> {
+    part1_with_time(input, 1024)
+}
+
+#[aoc(day18, part2)]
+fn part2((grid, corrupted_positions): &Input) -> Option<String> {
+    for time in 1..corrupted_positions.len() {
+        if distance_at_time(grid, time).is_none() {
+            let Position(i, j) = corrupted_positions[time - 1];
+            return Some(format!("{j},{i}"));
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -188,11 +207,22 @@ mod tests {
 
     #[test]
     fn part1_example1() {
-        assert_eq!(Some(22), part1_with_time(&parse_with_dimensions(EXAMPLE1, 7, 7).unwrap(), 12));
+        assert_eq!(22, part1_with_time(&parse_with_dimensions(EXAMPLE1, 7, 7).unwrap(), 12).unwrap());
     }
 
     #[test]
     fn part1_input() {
-        assert_eq!(Some(408), part1(&parse(include_str!("../input/2024/day18.txt")).unwrap()));
+        assert_eq!(408, part1(&parse(include_str!("../input/2024/day18.txt")).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!("6,1", part2(&parse_with_dimensions(EXAMPLE1, 7, 7).unwrap()).unwrap());
+    }
+
+    #[test]
+    #[ignore]
+    fn part2_input() {
+        assert_eq!("45,16", part2(&parse(include_str!("../input/2024/day18.txt")).unwrap()).unwrap());
     }
 }
