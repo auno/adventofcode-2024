@@ -1,12 +1,10 @@
-use std::cmp::{Ordering, Reverse};
-use std::collections::{BinaryHeap, VecDeque};
 
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 
 use crate::utils::grid::{Direction, Grid, Position, IntoEnumIterator};
+use crate::utils::path_finding::distance;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 enum MemoryCell {
@@ -46,11 +44,7 @@ fn parse(input: &str) -> Result<Input> {
     parse_with_dimensions(input, 71, 71)
 }
 
-type SearchNode = Position;
-type Distances = HashMap<SearchNode, (usize, Vec<SearchNode>)>;
-type PathMap = HashMap<SearchNode, Vec<SearchNode>>;
-
-fn neighbors(grid: &Grid<MemoryCell>, position: SearchNode, time: usize) -> Vec<(SearchNode, usize)> {
+fn neighbors(grid: &Grid<MemoryCell>, position: Position, time: usize) -> Vec<(Position, usize)> {
     Direction::iter()
         .map(|direction| position.step(direction))
         .filter(|position| match grid.get(position) {
@@ -62,88 +56,12 @@ fn neighbors(grid: &Grid<MemoryCell>, position: SearchNode, time: usize) -> Vec<
         .collect_vec()
 }
 
-fn resolve_path_map(distances: &Distances, targets: &[SearchNode]) -> PathMap {
-    let mut queue = VecDeque::from_iter(targets.iter().copied());
-    let mut seen = HashSet::new();
-    let mut path_map = HashMap::from_iter(targets.iter().map(|target| (*target, vec![])));
-
-    while let Some(current) = queue.pop_front() {
-        if !seen.insert(current) {
-            continue;
-        }
-
-        for &previous in distances
-            .get(&current)
-            .map(|(_, previous)| previous)
-            .unwrap_or(&vec![])
-        {
-            path_map.entry(previous).or_default().push(current);
-            queue.push_back(previous);
-        }
-    }
-
-    path_map
-}
-
-fn distance(
-    grid: &Grid<MemoryCell>,
-    source: SearchNode,
-    neighbors: impl Fn(&Grid<MemoryCell>, SearchNode) -> Vec<(SearchNode, usize)>,
-    is_target: impl Fn(SearchNode) -> bool
-) -> Option<(usize, PathMap)> {
-    let mut distances = HashMap::from([(source, (0, vec![]))]);
-    let mut queue = BinaryHeap::from([(Reverse(0), source)]);
-
-    while let Some((Reverse(distance), current)) = queue.pop() {
-        if is_target(current) {
-            break;
-        }
-
-        for (neighbor, cost) in neighbors(grid, current) {
-            let (neighbor_distance, neighbor_source) = distances
-                .entry(neighbor)
-                .or_insert((usize::MAX, vec![]));
-
-            match (distance + cost).cmp(neighbor_distance) {
-                Ordering::Less => {
-                    *neighbor_distance = distance + cost;
-                    *neighbor_source = vec![current];
-                    queue.push((Reverse(*neighbor_distance), neighbor));
-                }
-                Ordering::Equal => {
-                    neighbor_source.push(current);
-                }
-                Ordering::Greater => {},
-            }
-        }
-    }
-
-    let potential_targets = distances
-        .iter()
-        .filter(|(node, _)| is_target(**node))
-        .collect_vec();
-
-    let min_distance = potential_targets
-        .iter()
-        .map(|(_, (distance, _))| *distance)
-        .min()?;
-
-    let targets = potential_targets
-        .iter()
-        .filter(|(_, (distance, _))| *distance == min_distance)
-        .map(|(node, _)| **node)
-        .collect_vec();
-
-    Some((min_distance, resolve_path_map(&distances, &targets)))
-}
-
 fn distance_at_time(grid: &Grid<MemoryCell>, time: usize) -> Option<usize> {
     let source = Position(0, 0);
     let target = Position(grid.rows::<isize>() - 1, grid.cols::<isize>() - 1);
     let (distance, _) = distance(
-        grid,
         source,
-        |grid, position| neighbors(grid, position, time),
+        |position| neighbors(grid, position, time),
         |position| position == target,
     )?;
 
