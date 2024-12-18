@@ -181,7 +181,7 @@ fn part2(input: &Input) -> Result<usize> {
     for i in 4.. {
         let mut candidates = vec![];
 
-        for candidate_prefix in 0..(1 << 6) {
+        for candidate_prefix in 0..(1 << 4) {
             for candidate_suffix in &candidate_suffixes {
                 let mut registers = *registers;
                 let candidate = (candidate_prefix << (i * 3)) + candidate_suffix;
