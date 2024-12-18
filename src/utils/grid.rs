@@ -6,6 +6,7 @@ use std::fmt::{Debug, Display};
 use std::ops::{Index, IndexMut};
 
 use anyhow::{bail, Context, Error, Result};
+use derive_more::derive::Display;
 use itertools::Itertools;
 use strum::EnumIter;
 pub use strum::IntoEnumIterator;
@@ -79,7 +80,7 @@ pub struct Grid<T> where T: Clone {
     len: GridSize,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Display)]
 struct GridSize(usize);
 
 impl From<isize> for GridSize {
@@ -106,20 +107,35 @@ impl From<GridSize> for isize {
     }
 }
 
+impl PartialEq<isize> for GridSize {
+    fn eq(&self, other: &isize) -> bool {
+        isize::from(*self).eq(other)
+    }
+}
+
+impl PartialOrd<isize> for GridSize {
+    fn partial_cmp(&self, other: &isize) -> Option<std::cmp::Ordering> {
+        isize::from(*self).partial_cmp(other)
+    }
+}
+
 impl<T> Grid<T> where T: Default + Copy + Clone {
-    pub fn new<S>(rows: S, cols: S) -> Grid<T> where S: Into<GridSize> + PartialOrd<isize> + Display {
+    pub fn new<S>(rows: S, cols: S) -> Grid<T> where S: Into<GridSize> + Display {
         Self::new_with_value(rows, cols, T::default())
     }
 }
 
 impl<T> Grid<T> where T: Clone {
-    pub fn new_with_value<S>(rows: S, cols: S, value: T) -> Grid<T> where S: Into<GridSize> + PartialOrd<isize> + Display {
+    pub fn new_with_value<S>(rows: S, cols: S, value: T) -> Grid<T> where S: Into<GridSize> + Display {
+        let rows: GridSize = rows.into();
+        let cols: GridSize = cols.into();
+
         if rows < 0 || cols < 0 {
             panic!("Dimensions not non-negative: ({rows}, {cols})");
         }
 
-        let rows: usize = rows.into().into();
-        let cols: usize = cols.into().into();
+        let rows: usize = rows.into();
+        let cols: usize = cols.into();
         let len = rows * cols;
 
         Grid {
