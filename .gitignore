@@ -13,5 +13,6 @@ Cargo.lock
 
 /commit.sh
 /next.sh
+/next.template.rs
 /input/
 /temp/
