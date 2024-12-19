@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
 
-use crate::utils::path_finding::distance;
-
 type Input = (Vec<String>, Vec<String>);
 
 #[aoc_generator(day19)]
@@ -14,30 +12,49 @@ fn parse(input: &str) -> Result<Input> {
     Ok((available, desired))
 }
 
-fn neighbors(available_patterns: &[String], desired_pattern: &str, i: usize) -> Vec<(usize, usize)> {
-    available_patterns
+fn count_combinations(cache: &mut [Option<usize>], available_patterns: &[String], desired_pattern: &str) -> usize {
+    if desired_pattern.is_empty() {
+        return 1;
+    }
+
+    if let Some(result) = cache[0] {
+        return result;
+    }
+
+    let result = available_patterns
         .iter()
-        .filter_map(|candidate| {
-            match desired_pattern[i..].starts_with(candidate) {
-                true => Some((i + candidate.len(), 1)),
-                false => None,
+        .map(|candidate| {
+            match desired_pattern.starts_with(candidate) {
+                true => count_combinations(&mut cache[candidate.len()..], available_patterns, &desired_pattern[candidate.len()..]),
+                false => 0,
             }
         })
-        .collect()
+        .sum();
+
+    cache[0] = Some(result);
+    result
 }
 
 #[aoc(day19, part1)]
-fn part1((available_patterns, desired_pattern): &Input) -> usize {
-    desired_pattern
+fn part1((available_patterns, desired_patterns): &Input) -> usize {
+    desired_patterns
         .iter()
         .filter(|desired_pattern| {
-            distance(
-                0,
-                |i| neighbors(available_patterns, desired_pattern, i),
-                |i| i == desired_pattern.len()
-            ).is_some()
+            let mut cache = vec![None; desired_pattern.len()];
+            count_combinations(&mut cache, available_patterns, desired_pattern) > 0
         })
         .count()
+}
+
+#[aoc(day19, part2)]
+fn part2((available_patterns, desired_patterns): &Input) -> usize {
+    desired_patterns
+        .iter()
+        .map(|desired_pattern| {
+            let mut cache = vec![None; desired_pattern.len()];
+            count_combinations(&mut cache, available_patterns, desired_pattern)
+        })
+        .sum()
 }
 
 #[cfg(test)]
@@ -67,5 +84,15 @@ mod tests {
     #[test]
     fn part1_input() {
         assert_eq!(304, part1(&parse(include_str!("../input/2024/day19.txt")).unwrap()));
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(16, part2(&parse(EXAMPLE1).unwrap()));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(705756472327497, part2(&parse(include_str!("../input/2024/day19.txt")).unwrap()));
     }
 }
