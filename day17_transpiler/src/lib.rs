@@ -1,8 +1,11 @@
-use std::collections::VecDeque;
+#![feature(proc_macro_span)]
+
+use std::{collections::VecDeque, fs::read_to_string};
 
 use proc_macro as pm;
 use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream, TokenTree};
 use quote::quote;
+use syn::{parse, LitStr};
 
 fn label(jump_target: usize) -> TokenStream {
     TokenStream::from_iter([
@@ -12,8 +15,17 @@ fn label(jump_target: usize) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn transpile_program(_input: pm::TokenStream) -> pm::TokenStream {
-    let input = include_str!("/home/auno/stuff/projects/adventofcode/2024/input/2024/day17.txt");
+pub fn transpile_program(input: pm::TokenStream) -> pm::TokenStream {
+    let input_filename: LitStr = parse(input).expect("Unable to parse input");
+    let input_filename = input_filename.value();
+    let source_file_path = proc_macro::Span::call_site().source_file().path();
+    let filename = source_file_path.parent().unwrap().join(&input_filename);
+
+    let input = match read_to_string(&filename) {
+        Ok(contents) => contents,
+        Err(e) => panic!("Unable to read input file {input_filename}: {e:?}"),
+    };
+
     let (_, program) = input.split_once("\n\n").unwrap();
     let (_, program) = program.split_once(": ").unwrap();
     let program = program.trim().split(',').map(|n| n.parse::<usize>().unwrap()).collect::<Vec<_>>();

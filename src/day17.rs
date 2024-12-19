@@ -207,7 +207,7 @@ fn part2(input: &Input) -> Result<usize> {
 
 #[aoc(day17, part2, compiled)]
 fn part2_compiled(input: &Input) -> Result<usize> {
-    day17_transpiler::transpile_program!();
+    day17_transpiler::transpile_program!("../input/2024/day17.txt");
 
     let (registers, program) = input;
     let mut prefixes = vec![0];
