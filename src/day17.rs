@@ -205,6 +205,40 @@ fn part2(input: &Input) -> Result<usize> {
     Ok(prefixes[0])
 }
 
+#[aoc(day17, part2, compiled)]
+fn part2_compiled(input: &Input) -> Result<usize> {
+    day17_transpiler::transpile_program!();
+
+    let (registers, program) = input;
+    let mut prefixes = vec![0];
+
+    for i in 0..program.len() {
+        let mut next_prefixes = vec![];
+
+        for prefix in prefixes {
+            for candidate_suffix in 0..(1 << 3) {
+                if i == 0 && candidate_suffix == 0 { continue; }
+
+                let candidate = (prefix << 3) + candidate_suffix;
+                let registers = [candidate, registers[Register::B], registers[Register::C]];
+                let (output, _) = run_program_compiled(registers)?;
+
+                if output[..] == program[(program.len() - (i + 1))..] {
+                    next_prefixes.push(candidate);
+                }
+            }
+        }
+
+        prefixes = next_prefixes;
+    }
+
+    if prefixes.is_empty() {
+        bail!("No solution found");
+    }
+
+    Ok(prefixes[0])
+}
+
 #[cfg(test)]
 mod tests {
     use indoc::indoc;
@@ -274,8 +308,12 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn part2_input() {
         assert_eq!(108107566389757, part2(&parse(include_str!("../input/2024/day17.txt")).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn part2_compiled_input() {
+        assert_eq!(108107566389757, part2_compiled(&parse(include_str!("../input/2024/day17.txt")).unwrap()).unwrap());
     }
 }

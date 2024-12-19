@@ -1,3 +1,10 @@
+[workspace]
+members = ["day17_transpiler"]
+exclude = [
+    "target/aoc/aoc-autobuild",
+    "target/aoc/aoc-autobench",
+]
+
 [package]
 name = "aoc-2024"
 version = "0.1.0"
@@ -14,3 +21,4 @@ strum = { version = "0.26.3", features = ["derive"] }
 hashbrown = "0.15.2"
 scan_fmt = "0.2.6"
 derive_more = { version = "1.0.0", features = ["display", "try_from"] }
+day17_transpiler = { path = "day17_transpiler" }
