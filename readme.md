@@ -32,3 +32,4 @@ naming), you can run any specific day's solution using something like
 | [Day 17](./src/day17.rs) | ⭐⭐ | 08:09:38 / 13:37:52 | 15756 / 10439 |
 | [Day 18](./src/day18.rs) | ⭐⭐ | 04:41:02 / 05:28:05 | 11730 / 11806 |
 | [Day 19](./src/day19.rs) | ⭐⭐ | 03:58:15 / 04:28:43 | 10611 / 9221 |
+| [Day 20](./src/day20.rs) | ⭐⭐ | 09:14:47 / 11:56:15 | 13831 / 11529 |
