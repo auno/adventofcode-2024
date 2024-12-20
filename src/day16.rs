@@ -4,7 +4,7 @@ use aoc_runner_derive::{aoc, aoc_generator};
 use itertools::Itertools;
 
 use crate::utils::grid::{Direction, Grid, Position};
-use crate::utils::path_finding::{distance, PathMap};
+use crate::utils::path_finding::{shortest_paths_to_target, PathMap};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tile {
@@ -50,7 +50,7 @@ fn neighbors(grid: &Grid<Tile>, (position, direction): SearchNode) -> Vec<(Searc
 }
 
 fn shortest_paths((grid, start, goal): &Input) -> Option<(usize, PathMap<SearchNode>)> {
-    distance(
+    shortest_paths_to_target(
         (*start, Direction::Right),
         |node| neighbors(grid, node),
         |(position, _) | position == *goal,

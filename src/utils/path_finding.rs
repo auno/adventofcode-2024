@@ -33,43 +33,28 @@ fn resolve_path_map<SearchNode>(distances: &Distances<SearchNode>, targets: &[Se
     path_map
 }
 
-pub fn distance<SearchNode> (
+pub fn shortest_paths_to_target<SearchNode, IsTargetFn> (
     source: SearchNode,
     neighbors: impl Fn(SearchNode) -> Vec<(SearchNode, usize)>,
-    is_target: impl Fn(SearchNode) -> bool,
+    is_target: IsTargetFn,
 ) -> Option<(usize, PathMap<SearchNode>)> where
     SearchNode: Copy + Clone + PartialEq + PartialOrd + Ord + Hash,
+    IsTargetFn: Fn(SearchNode) -> bool + Copy,
 {
-    let mut distances = HashMap::from([(source, (0, vec![]))]);
-    let mut queue = BinaryHeap::from([(Reverse(0), source)]);
+    let (distances, reached_targets) = distances_impl(
+        source,
+        neighbors,
+        is_target,
+        true
+    );
 
-    while let Some((Reverse(distance), current)) = queue.pop() {
-        if is_target(current) {
-            break;
-        }
-
-        for (neighbor, cost) in neighbors(current) {
-            let (neighbor_distance, neighbor_source) = distances
-                .entry(neighbor)
-                .or_insert((usize::MAX, vec![]));
-
-            match (distance + cost).cmp(neighbor_distance) {
-                Ordering::Less => {
-                    *neighbor_distance = distance + cost;
-                    *neighbor_source = vec![current];
-                    queue.push((Reverse(*neighbor_distance), neighbor));
-                }
-                Ordering::Equal => {
-                    neighbor_source.push(current);
-                }
-                Ordering::Greater => {},
-            }
-        }
+    if reached_targets.is_empty() {
+        return None;
     }
 
-    let potential_targets = distances
+    let potential_targets = reached_targets
         .iter()
-        .filter(|(node, _)| is_target(**node))
+        .filter_map(|target| Some((target, distances.get(target)?)))
         .collect_vec();
 
     let min_distance = potential_targets
@@ -84,4 +69,74 @@ pub fn distance<SearchNode> (
         .collect_vec();
 
     Some((min_distance, resolve_path_map(&distances, &targets)))
+}
+
+pub fn distance_to_target<SearchNode, IsTargetFn> (
+    source: SearchNode,
+    neighbors: impl Fn(SearchNode) -> Vec<(SearchNode, usize)>,
+    is_target: IsTargetFn,
+) -> Option<usize> where
+    SearchNode: Copy + Clone + PartialEq + PartialOrd + Ord + Hash,
+    IsTargetFn: Fn(SearchNode) -> bool + Copy,
+{
+    let (distances, targets_reached) = distances_impl(
+        source,
+        neighbors,
+        is_target,
+        false,
+    );
+
+    if targets_reached.is_empty() {
+        return None;
+    }
+
+    targets_reached
+        .iter()
+        .filter_map(|target| distances.get(target))
+        .map(|(a, _)| *a)
+        .min()
+}
+
+fn distances_impl<SearchNode, IsTargetFn> (
+    source: SearchNode,
+    neighbors: impl Fn(SearchNode) -> Vec<(SearchNode, usize)>,
+    is_target: IsTargetFn,
+    break_at_target: bool,
+) -> (Distances<SearchNode>, Vec<SearchNode>) where
+    SearchNode: Copy + Clone + PartialEq + PartialOrd + Ord + Hash,
+    IsTargetFn: Fn(SearchNode) -> bool + Copy,
+{
+    let mut distances = HashMap::from([(source, (0, vec![]))]);
+    let mut queue = BinaryHeap::from([(Reverse(0), source)]);
+    let mut targets_reached = vec![];
+
+    while let Some((Reverse(distance), current)) = queue.pop() {
+        if is_target(current) {
+            targets_reached.push(current);
+
+            if break_at_target {
+                break;
+            }
+        }
+
+        for (neighbor, cost) in neighbors(current) {
+            let (neighbor_distance, neighbor_sources) = distances
+                .entry(neighbor)
+                .or_insert((usize::MAX, vec![]));
+
+            match (distance + cost).cmp(neighbor_distance) {
+                Ordering::Less => {
+                    *neighbor_distance = distance + cost;
+                    *neighbor_sources = vec![current];
+                    queue.push((Reverse(*neighbor_distance), neighbor));
+                }
+                Ordering::Equal => {
+                    neighbor_sources.push(current);
+                }
+                Ordering::Greater => {},
+            }
+        }
+    }
+
+    (distances, targets_reached)
 }

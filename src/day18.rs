@@ -4,7 +4,7 @@ use aoc_runner_derive::{aoc, aoc_generator};
 use itertools::Itertools;
 
 use crate::utils::grid::{Direction, Grid, Position, IntoEnumIterator};
-use crate::utils::path_finding::distance;
+use crate::utils::path_finding::shortest_paths_to_target;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 enum MemoryCell {
@@ -59,7 +59,7 @@ fn neighbors(grid: &Grid<MemoryCell>, position: Position, time: usize) -> Vec<(P
 fn distance_at_time(grid: &Grid<MemoryCell>, time: usize) -> Option<usize> {
     let source = Position(0, 0);
     let target = Position(grid.rows::<isize>() - 1, grid.cols::<isize>() - 1);
-    let (distance, _) = distance(
+    let (distance, _) = shortest_paths_to_target(
         source,
         |position| neighbors(grid, position, time),
         |position| position == target,

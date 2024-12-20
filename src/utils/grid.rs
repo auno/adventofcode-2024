@@ -61,9 +61,9 @@ impl Position {
         Position(i as isize, j as isize)
     }
 
-    pub fn step(self, dir: Direction) -> Position {
+    pub fn step(self, direction: Direction) -> Position {
         let Position(i, j) = self;
-        match dir {
+        match direction {
             Direction::Up => Position(i - 1, j),
             Direction::Down => Position(i + 1, j),
             Direction::Left => Position(i, j - 1),
