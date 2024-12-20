@@ -1,9 +1,8 @@
 use anyhow::{bail, Error, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use itertools::Itertools;
 
 use crate::utils::grid::{Direction, Grid, Position, IntoEnumIterator};
-use crate::utils::path_finding::{distance_to_target, shortest_paths_to_target};
+use crate::utils::path_finding::shortest_paths_to_target;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tile {
@@ -47,50 +46,62 @@ fn neighbors(grid: &Grid<Tile>, position: SearchNode) -> Vec<(SearchNode, usize)
         .collect()
 }
 
-fn part1_with_limit((grid, start, goal): &Input, limit: usize) -> Option<usize> {
+fn solve((grid, start, goal): &Input, maximum_cheat_length: usize, minimum_saved_time: usize) -> Option<usize> {
+    let maximum_cheat_length = maximum_cheat_length as isize;
+    let minimum_saved_time = minimum_saved_time as isize;
+
     let (non_cheat_distance, path_map) = shortest_paths_to_target(
         *start,
         |position| neighbors(grid, position),
         |position| position == *goal,
     )?;
 
-    let cheats = path_map
-        .keys()
-        .flat_map(|position| {
-            Direction::iter()
-                .map(|direction| (*position, position.step(direction), position.step(direction).step(direction)))
-                .filter(|(_, p1, p2)| grid.get(p1) == Some(&Tile::Wall) && grid.get(p2) == Some(&Tile::Free))
-        })
-        .collect_vec();
+    let mut distance_to_target = Grid::new_with_value(grid.rows::<isize>(), grid.cols(), None);
+    let mut path = vec![];
+    let mut current = Some((*start, non_cheat_distance as isize));
 
-    let num_valid_cheats = cheats
-        .into_iter()
-        .filter_map(|(cheat_source, _, cheat_target)| {
-            let cheat_distance = distance_to_target(
-                *start,
-                |position| {
-                    let mut neighbors = neighbors(grid, position);
+    while let Some((position, distance)) = current {
+        path.push(position);
+        distance_to_target.set(&position, Some(distance));
 
-                    if position == cheat_source {
-                        neighbors.push((cheat_target, 2));
-                    }
+        if distance == 0 { break };
 
-                    neighbors
-                },
-                |position| position == *goal,
-            )?;
+        current = path_map.get(&position).map(|next| {
+            assert_eq!(1, next.len());
+            (next[0], distance - 1)
+        });
+    }
 
-            Some(cheat_distance)
-        })
-        .filter(|distance| non_cheat_distance - distance >= limit)
-        .count();
+    let mut count = 0;
 
-    Some(num_valid_cheats)
+    for cheat_source in path {
+        let Position(i, j) = cheat_source;
+        let cheat_source_distance = distance_to_target.get(&cheat_source).unwrap().unwrap();
+
+        for oi in -maximum_cheat_length..=maximum_cheat_length {
+            for oj in -(maximum_cheat_length - oi.abs())..=(maximum_cheat_length - oi.abs()) {
+                let cheat_length = oi.abs() + oj.abs();
+                let cheat_target = Position(i + oi, j + oj);
+                let Some(Some(cheat_target_distance)) = distance_to_target.get(&cheat_target) else { continue };
+
+                if cheat_source_distance - (cheat_target_distance + cheat_length) >= minimum_saved_time {
+                    count += 1;
+                }
+            }
+        }
+    }
+
+    Some(count)
 }
 
 #[aoc(day20, part1)]
 fn part1(input: &Input) -> Option<usize> {
-    part1_with_limit(input, 100)
+    solve(input, 2, 100)
+}
+
+#[aoc(day20, part2)]
+fn part2(input: &Input) -> Option<usize> {
+    solve(input, 20, 100)
 }
 
 #[cfg(test)]
@@ -119,22 +130,41 @@ mod tests {
 
     #[test]
     fn part1_example1_1() {
-        assert_eq!(Some(44), part1_with_limit(&parse(EXAMPLE1).unwrap(), 2));
+        assert_eq!(Some(44), solve(&parse(EXAMPLE1).unwrap(), 2, 2));
     }
 
     #[test]
     fn part1_example1_2() {
-        assert_eq!(Some(14), part1_with_limit(&parse(EXAMPLE1).unwrap(), 8));
+        assert_eq!(Some(14), solve(&parse(EXAMPLE1).unwrap(), 2, 8));
     }
 
     #[test]
     fn part1_example1_3() {
-        assert_eq!(Some(1), part1_with_limit(&parse(EXAMPLE1).unwrap(), 64));
+        assert_eq!(Some(1), solve(&parse(EXAMPLE1).unwrap(), 2, 64));
     }
 
     #[test]
-    #[ignore]
     fn part1_input() {
-        assert_eq!(17, part1(&parse(include_str!("../input/2024/day20.txt")).unwrap()).unwrap());
+        assert_eq!(1518, part1(&parse(include_str!("../input/2024/day20.txt")).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn part2_example1_1() {
+        assert_eq!(Some(285), solve(&parse(EXAMPLE1).unwrap(), 20, 50));
+    }
+
+    #[test]
+    fn part2_example1_2() {
+        assert_eq!(Some(29), solve(&parse(EXAMPLE1).unwrap(), 20, 72));
+    }
+
+    #[test]
+    fn part2_example1_3() {
+        assert_eq!(Some(3), solve(&parse(EXAMPLE1).unwrap(), 20, 76));
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!(1032257, part2(&parse(include_str!("../input/2024/day20.txt")).unwrap()).unwrap());
     }
 }

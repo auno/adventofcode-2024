@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, VecDeque};
 use std::hash::Hash;
