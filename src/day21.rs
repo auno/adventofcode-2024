@@ -1,4 +1,4 @@
-use std::iter::{once, repeat_n};
+use std::{iter::{once, repeat_n}, usize};
 
 use anyhow::{bail, Context, Error, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
@@ -284,72 +284,158 @@ fn part1(input: &Input) -> Result<usize> {
         }
     }
 
+    fn find_best_dpad_sequence2(dplut: &DPadLut, dpad_keys: &[DPadKey], n: usize) -> usize {
+        if n == 0 { return dpad_keys.len(); }
+
+        let mut count = 0;
+        let mut current = DPadKey::A;
+        let best = usize::MAX;
+
+        for &next in dpad_keys {
+            let dpad_key_sequences = dplut.get(&(current, next)).unwrap();
+            count += dpad_key_sequences
+                .into_iter()
+                .map(|dpad_keys| find_best_dpad_sequence2(&dplut, dpad_keys, n - 1))
+                .min()
+                .unwrap();
+            current = next;
+        }
+
+        count
+    }
+
     let mut sum = 0;
 
-    for (code, numpad_keys, numerical_part) in input {
-        eprintln!("-- code: {code} - {numpad_keys:?}");
-
-        let mut sequences = find_all_numpad_sequences(&nplut, numpad_keys, NumPadKey::A);
-        for sequence in &sequences {
-            eprintln!("     {}", dpkeys_to_string(sequence));
-        }
-
-        for _round in 0..2 {
-            sequences = sequences
+    for (_, numpad_keys, numerical_part) in input {
+        let mut count = 0;
+        let mut current = NumPadKey::A;
+        for &next in numpad_keys {
+            let dpad_key_sequences = nplut.get(&(current, next)).unwrap();
+            count += dpad_key_sequences
                 .into_iter()
-                .flat_map(|sequence| find_all_dpad_sequences(&dplut, &sequence, DPadKey::A))
-                .collect_vec();
-            eprintln!("  {_round}: {}", dpkeys_to_string(&sequences[0]));
+                .map(|dpad_keys| find_best_dpad_sequence2(&dplut, dpad_keys, 2))
+                .min()
+                .unwrap();
+            current = next;
         }
 
-        let shortest_length = sequences
-            .iter()
-            .map(|sequence| sequence.len())
-            .min()
-            .context(format!("No sequence found for {code}"))?;
-
-        eprintln!("-- {code} => {shortest_length} * {numerical_part} = {}", shortest_length * numerical_part);
-
-        sum += shortest_length * numerical_part
+        sum += count * numerical_part;
     }
 
     Ok(sum)
 }
 
-fn find_all_numpad_sequences(nplut: &NumPadLut, numpad_keys: &[NumPadKey], current: NumPadKey) -> Vec<Vec<DPadKey>> {
-    let mut sequences = vec![];
+#[aoc(day21, part2)]
+fn part2(input: &Input) -> Result<usize> {
+    let mut nplut: NumPadLut = HashMap::new();
 
-    if numpad_keys.is_empty() {
-        return vec![vec![]];
-    }
+    for start in (0..4isize).cartesian_product(0..3isize) {
+        if start == (3, 0) { continue; }
 
-    let next = numpad_keys[0];
+        for end in (0..4isize).cartesian_product(0..3isize) {
+            if end == (3, 0) { continue; }
 
-    for prefix in nplut.get(&(current, next)).unwrap_or_else(|| panic!("No nplut entry for {current:?} -> {next:?}")) {
-        for suffix in find_all_numpad_sequences(nplut, &numpad_keys[1..], next) {
-            sequences.push(prefix.iter().chain(suffix.iter()).copied().collect_vec());
+            let (si, sj) = start;
+            let (ei, ej) = end;
+
+            let mut paths = vec![];
+
+            let idiff = si.abs_diff(ei);
+            let jdiff = sj.abs_diff(ej);
+
+            let ikey = if si > ei { DPadKey::Up } else { DPadKey::Down };
+            let jkey = if sj > ej { DPadKey::Left } else { DPadKey::Right };
+
+            if (ei, sj) != (3, 0) {
+                paths.push(repeat_n(ikey, idiff).chain(repeat_n(jkey, jdiff)).chain(once(DPadKey::A)).collect_vec());
+            }
+
+            if (si, ej) != (3, 0) {
+                paths.push(repeat_n(jkey, jdiff).chain(repeat_n(ikey, idiff)).chain(once(DPadKey::A)).collect_vec());
+            }
+
+            nplut.insert((start.try_into()?, end.try_into()?), paths.into_iter().unique().collect_vec());
         }
     }
 
-    sequences
-}
+    let mut dplut: DPadLut = HashMap::new();
 
-fn find_all_dpad_sequences(dplut: &DPadLut, dpad_keys: &[DPadKey], current: DPadKey) -> Vec<Vec<DPadKey>> {
-    let mut sequences = vec![];
+    for start in (0..2isize).cartesian_product(0..3isize) {
+        if start == (0, 0) { continue; }
 
-    if dpad_keys.is_empty() {
-        return vec![vec![]];
-    }
+        for end in (0..2isize).cartesian_product(0..3isize) {
+            if end == (0, 0) { continue; }
 
-    let next = dpad_keys[0];
+            let (si, sj) = start;
+            let (ei, ej) = end;
 
-    for prefix in dplut.get(&(current, next)).unwrap_or_else(|| panic!("No nplut entry for {current:?} -> {next:?}")) {
-        for suffix in find_all_dpad_sequences(dplut, &dpad_keys[1..], next) {
-            sequences.push(prefix.iter().chain(suffix.iter()).copied().collect_vec());
+            let mut paths = vec![];
+
+            let idiff = si.abs_diff(ei);
+            let jdiff = sj.abs_diff(ej);
+
+            let ikey = if si > ei { DPadKey::Up } else { DPadKey::Down };
+            let jkey = if sj > ej { DPadKey::Left } else { DPadKey::Right };
+
+            if (ei, sj) != (0, 0) {
+                paths.push(repeat_n(ikey, idiff).chain(repeat_n(jkey, jdiff)).chain(once(DPadKey::A)).collect_vec());
+            }
+
+            if (si, ej) != (0, 0) {
+                paths.push(repeat_n(jkey, jdiff).chain(repeat_n(ikey, idiff)).chain(once(DPadKey::A)).collect_vec());
+            }
+
+            dplut.insert((start.try_into()?, end.try_into()?), paths.into_iter().unique().collect_vec());
         }
     }
 
-    sequences
+    fn find_best_dpad_sequence2(cache: &mut HashMap<(Vec<DPadKey>, usize), usize>, dplut: &DPadLut, dpad_keys: &Vec<DPadKey>, n: usize) -> usize {
+        if n == 0 { return dpad_keys.len(); }
+
+        if let Some(cached_result) = cache.get(&(dpad_keys.clone(), n)) {
+            return *cached_result;
+        }
+
+        let mut count = 0;
+        let mut current = DPadKey::A;
+
+        for &next in dpad_keys {
+            let mut best = usize::MAX;
+
+            for dpad_keys in dplut.get(&(current, next)).unwrap() {
+                best = best.min(find_best_dpad_sequence2(cache, dplut, dpad_keys, n - 1));
+            }
+
+            count += best;
+            current = next;
+        }
+
+        cache.insert((dpad_keys.clone(), n), count);
+
+        count
+    }
+
+    let mut sum = 0;
+    let mut cache = HashMap::new();
+
+    for (_, numpad_keys, numerical_part) in input {
+        let mut count = 0;
+        let mut current = NumPadKey::A;
+        for &next in numpad_keys {
+            let mut best = usize::MAX;
+
+            for dpad_keys in nplut.get(&(current, next)).unwrap() {
+                best = best.min(find_best_dpad_sequence2(&mut cache, &dplut, dpad_keys, 25));
+            }
+
+            count += best;
+            current = next;
+        }
+
+        sum += count * numerical_part;
+    }
+
+    Ok(sum)
 }
 
 #[cfg(test)]
