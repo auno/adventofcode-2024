@@ -1,2 +1,1 @@
-pub mod grid;
-pub mod path_finding;
+automod::dir!(pub "src/utils/");
