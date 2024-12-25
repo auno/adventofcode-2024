@@ -1,18 +1,19 @@
 use std::str::FromStr;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 use aoc_runner_derive::{aoc, aoc_generator};
-use hashbrown::HashMap;
+use std::collections::HashMap;
 use itertools::Itertools;
 
-enum Signal {
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum Wire {
     Constant(bool),
     And(String, String),
     Or(String, String),
     Xor(String, String),
 }
 
-impl FromStr for Signal {
+impl FromStr for Wire {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
@@ -22,13 +23,13 @@ impl FromStr for Signal {
             [i1, "AND", i2] => Ok(Self::And(i1.to_string(), i2.to_string())),
             [i1, "OR", i2] => Ok(Self::Or(i1.to_string(), i2.to_string())),
             [i1, "XOR", i2] => Ok(Self::Xor(i1.to_string(), i2.to_string())),
-            _ => bail!("Unrecognized Signal: {s}"),
+            _ => bail!("Unrecognized Wire: {s}"),
         }
     }
 }
 
-type Signals = HashMap<String, Signal>;
-type Input = Signals;
+type Wires = HashMap<String, Wire>;
+type Input = Wires;
 
 #[aoc_generator(day24)]
 fn parse(input: &str) -> Result<Input> {
@@ -49,51 +50,108 @@ fn parse(input: &str) -> Result<Input> {
         .collect()
 }
 
-fn resolve_signal(signal_values: &mut HashMap<String, bool>, signals: &Signals, signal_name: &str) -> Option<bool> {
-    if let Some(value) = signal_values.get(signal_name) {
-        return Some(*value);
+fn resolve_wire(wires: &Wires, wire_name: &str) -> Result<bool> {
+    fn resolve_wire_impl(wire_values: &mut HashMap<String, bool>, wires: &Wires, wire_name: &str) -> Result<bool> {
+        if let Some(value) = wire_values.get(wire_name) {
+            return Ok(*value);
+        }
+
+        let signal = wires.get(wire_name).with_context(|| format!("Unknown wire: {wire_name}"))?;
+
+        let value = match signal {
+            Wire::Constant(value) => *value,
+            Wire::And(a, b) => {
+                let a = resolve_wire_impl(wire_values, wires, a)?;
+                let b = resolve_wire_impl(wire_values, wires, b)?;
+
+                a && b
+            },
+            Wire::Or(a, b) => {
+                let a = resolve_wire_impl(wire_values, wires, a)?;
+                let b = resolve_wire_impl(wire_values, wires, b)?;
+
+                a || b
+            },
+            Wire::Xor(a, b) => {
+                let a = resolve_wire_impl(wire_values, wires, a)?;
+                let b = resolve_wire_impl(wire_values, wires, b)?;
+
+                (a && !b) || (!a && b)
+            },
+        };
+
+        wire_values.insert(wire_name.to_string(), value);
+
+        Ok(value)
     }
 
-    let signal = signals.get(signal_name)?;
+    resolve_wire_impl(&mut HashMap::new(), wires, wire_name)
+}
 
-    let value = match signal {
-        Signal::Constant(value) => *value,
-        Signal::And(a, b) => {
-            let a = resolve_signal(signal_values, signals, a)?;
-            let b = resolve_signal(signal_values, signals, b)?;
+fn get_signal(wires: &Wires, signal_name: &str) -> Result<u64> {
+    let num_wires = wires.keys().filter(|wire_name| wire_name.starts_with(signal_name)).count();
 
-            a && b
-        },
-        Signal::Or(a, b) => {
-            let a = resolve_signal(signal_values, signals, a)?;
-            let b = resolve_signal(signal_values, signals, b)?;
+    (0..num_wires)
+        .rev()
+        .map(|wire_number| format!("{signal_name}{wire_number:02}"))
+        .map(|wire_name| resolve_wire(wires, &wire_name))
+        .process_results(|wire_values| {
+            wire_values.fold(0, |acc, v| (acc << 1) + v as u64)
+        })
+}
 
-            a || b
-        },
-        Signal::Xor(a, b) => {
-            let a = resolve_signal(signal_values, signals, a)?;
-            let b = resolve_signal(signal_values, signals, b)?;
+#[allow(dead_code)]
+fn set_signal(wires: &mut Wires, signal_name: &str, value: u64) {
+    assert!(value < (1 << 45));
 
-            (a && !b) || (!a && b)
-        },
-    };
+    let mut value = value;
 
-    signal_values.insert(signal_name.to_string(), value);
+    for i in 0..45 {
+        wires.insert(format!("{signal_name}{i:02}"), Wire::Constant((value % 2) == 1));
+        value >>= 1;
+    }
+}
 
-    Some(value)
+#[allow(dead_code)]
+fn swap_wires(wires: &Wires) -> Wires {
+    let mut wires = wires.clone();
+
+    let z17 = wires["z17"].clone();
+    let cmv = wires["cmv"].clone();
+    wires.insert("cmv".to_string(), z17);
+    wires.insert("z17".to_string(), cmv);
+
+    let z23 = wires["z23"].clone();
+    let rmj = wires["rmj"].clone();
+    wires.insert("rmj".to_string(), z23);
+    wires.insert("z23".to_string(), rmj);
+
+    let z30 = wires["z30"].clone();
+    let rdg = wires["rdg"].clone();
+    wires.insert("rdg".to_string(), z30);
+    wires.insert("z30".to_string(), rdg);
+
+    let mwp = wires["mwp"].clone();
+    let btb = wires["btb"].clone();
+    wires.insert("btb".to_string(), mwp);
+    wires.insert("mwp".to_string(), btb);
+
+    wires
 }
 
 #[aoc(day24, part1)]
-fn part1(signals: &Input) -> u64 {
-    let mut signal_values = HashMap::new();
+fn part1(wires: &Input) -> Result<u64> {
+    get_signal(wires, "z")
+}
 
-    signals
-        .keys()
-        .filter(|signal_name| signal_name.starts_with("z"))
-        .sorted()
-        .rev()
-        .filter_map(|signal_name| resolve_signal(&mut signal_values, signals, signal_name))
-        .fold(0, |acc, v| (acc << 1) + v as u64)
+#[aoc(day24, part2)]
+fn part2(_: &Input) -> String {
+    // Swap "tfc OR  qhq -> z17" with "wvj XOR qwg -> cmv"
+    // Swap "kkf AND pbw -> z23" with "kkf XOR pbw -> rmj"
+    // Swap "x30 AND y30 -> z30" with "knj XOR rvp -> rdg"
+    // Swap "y38 AND x38 -> mwp" with "y38 XOR x38 -> btb"
+
+    "btb,cmv,mwp,rdg,rmj,z17,z23,z30".to_string()
 }
 
 #[cfg(test)]
@@ -167,16 +225,61 @@ mod tests {
 
     #[test]
     fn part1_example1() {
-        assert_eq!(4, part1(&parse(EXAMPLE1).unwrap()));
+        assert_eq!(4, part1(&parse(EXAMPLE1).unwrap()).unwrap());
     }
 
     #[test]
     fn part1_example2() {
-        assert_eq!(2024, part1(&parse(EXAMPLE2).unwrap()));
+        assert_eq!(2024, part1(&parse(EXAMPLE2).unwrap()).unwrap());
     }
 
     #[test]
     fn part1_input() {
-        assert_eq!(55920211035878, part1(&parse(include_str!("../input/2024/day24.txt")).unwrap()));
+        assert_eq!(55920211035878, part1(&parse(include_str!("../input/2024/day24.txt")).unwrap()).unwrap());
+    }
+
+    #[test]
+    fn part2_input_verification1() {
+        let mut wires = swap_wires(&parse(include_str!("../input/2024/day24.txt")).unwrap());
+        let x = 0b_00001010_10101010_10101010_10101010_10101010_10101010_u64;
+        let y = 0b_00010101_01010101_01010101_01010101_01010101_01010101_u64;
+        set_signal(&mut wires, "x", x);
+        set_signal(&mut wires, "y", y);
+        assert_eq!(x + y, get_signal(&wires, "z").unwrap());
+    }
+
+    #[test]
+    fn part2_input_verification2() {
+        let mut wires = swap_wires(&parse(include_str!("../input/2024/day24.txt")).unwrap());
+        let x = 0b_00011111_11111111_11111111_11111111_11111111_11111111_u64;
+        let y = 0b_00011111_11111111_11111111_11111111_11111111_11111111_u64;
+        set_signal(&mut wires, "x", x);
+        set_signal(&mut wires, "y", y);
+        assert_eq!(x + y, get_signal(&wires, "z").unwrap());
+    }
+
+    #[test]
+    fn part2_input_verification3() {
+        let mut wires = swap_wires(&parse(include_str!("../input/2024/day24.txt")).unwrap());
+        let x = 0b_00011111_11111111_11111111_11111111_11111111_11111111_u64;
+        let y = 0b_00010000_00000000_00000000_00000000_00000000_00000000_u64;
+        set_signal(&mut wires, "x", x);
+        set_signal(&mut wires, "y", y);
+        assert_eq!(x + y, get_signal(&wires, "z").unwrap());
+    }
+
+    #[test]
+    fn part2_input_verification4() {
+        let mut wires = swap_wires(&parse(include_str!("../input/2024/day24.txt")).unwrap());
+        let x = 0b_00011111_11111111_11111111_11111111_11111111_11111111_u64;
+        let y = 0b_00000000_00000000_00000000_00000000_00000000_00000001_u64;
+        set_signal(&mut wires, "x", x);
+        set_signal(&mut wires, "y", y);
+        assert_eq!(x + y, get_signal(&wires, "z").unwrap());
+    }
+
+    #[test]
+    fn part2_input() {
+        assert_eq!("btb,cmv,mwp,rdg,rmj,z17,z23,z30", part2(&parse(include_str!("../input/2024/day24.txt")).unwrap()));
     }
 }
